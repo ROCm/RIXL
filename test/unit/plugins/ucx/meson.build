@@ -23,8 +23,14 @@ else
     cpp_args = '-UHAVE_CUDA'
 endif
 
+hipify_cmd = find_program('hipify-perl')
+hipify_src = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+ucx_hip_src = hipify_src.process('ucx_backend_test.cpp', extra_args: '-o')
+
 ucx_backend_test = executable('ucx_backend_test',
-        'ucx_backend_test.cpp',
+        ucx_hip_src,
         dependencies: [nixl_dep, nixl_infra, nixl_common_deps, ucx_backend_dep, ucx_dep, thread_dep] + cuda_dependencies,
         include_directories: [nixl_inc_dirs, utils_inc_dirs, '../../../../src/plugins/ucx'],
         cpp_args : cpp_args,

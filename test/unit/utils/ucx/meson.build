@@ -35,8 +35,15 @@ if get_option('buildtype') != 'release'
                install: true)
 
     if cuda_dep.found()
+        hipify_cmd = find_program('hipify-perl')
+        hipify_src = generator(hipify_cmd,
+                               output : ['@BASENAME@_hip.cpp'],
+                               arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+        ucx_worker_hip_src = hipify_src.process('ucx_worker_test.cpp', extra_args: '-o')
+        ucx_am_hip_src = hipify_src.process('ucx_am_test.cpp', extra_args: '-o')
+
         ucx_worker_cuda_bin = executable('ucx_worker_test_cuda',
-                       'ucx_worker_test.cpp',
+                       ucx_worker_hip_src,
                        dependencies: ucx_utils_dep,
                        include_directories: [nixl_inc_dirs,utils_inc_dirs],
                        cpp_args : '-DUSE_VRAM',
@@ -44,7 +51,7 @@ if get_option('buildtype') != 'release'
                        install: true)
 
         ucx_am_cuda_bin = executable('ucx_am_test_cuda',
-                       'ucx_am_test.cpp',
+                       ucx_am_hip_src,
                        dependencies: ucx_utils_dep,
                        include_directories: [nixl_inc_dirs,utils_inc_dirs],
                        cpp_args : '-DUSE_VRAM',
