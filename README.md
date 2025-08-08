@@ -58,7 +58,7 @@ $ sudo make install // will install in /usr/local by default
 
 ```
 $ meson setup build/ --prefix=${_nixl_install_dir}
-                     -Ducx_path={$_ucx_install_dir}
+                     -Ducx_path=${_ucx_install_dir}
                      -Ddisable_gds_backend=true
                      -Dcudapath_inc=/opt/rocm/include
                      -Dcudapath_lib=/opt/rocm/lib
