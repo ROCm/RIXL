@@ -14,7 +14,7 @@
 # limitations under the License.
 
 subdir('ucx')
-subdir('ucx_mo')
+#subdir('ucx_mo')
 subdir('posix')
 
 
@@ -28,9 +28,9 @@ if not disable_gds_backend
     subdir('cuda_gds')
 endif
 
-if taskflow_proj.found()
-    subdir('gds_mt')
-endif
+#if taskflow_proj.found()
+#    subdir('gds_mt')
+#endif
 
 cc = meson.get_compiler('cpp')
 libtransfer_engine = cc.find_library('transfer_engine', required: false)

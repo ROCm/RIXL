@@ -16,7 +16,7 @@
 ucx_backend_inc_dirs = include_directories('./ucx')
 
 subdir('ucx')
-subdir('ucx_mo')
+#subdir('ucx_mo')
 
 subdir('posix')  # Always try to build POSIX backend, it will handle its own dependencies
 subdir('obj')  # Always try to build Obj backend, it will handle its own dependencies

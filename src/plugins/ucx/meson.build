@@ -21,9 +21,15 @@ if cuda_dep.found()
     compile_flags = [ '-DHAVE_CUDA' ]
 endif
 
+hipify_cmd = find_program('hipify-perl')
+hipify_src = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+ucx_hip_src = hipify_src.process('ucx_backend.cpp', extra_args: '-o')
+
 if 'UCX' in static_plugins
     ucx_backend_lib = static_library('UCX',
-               'ucx_backend.cpp', 'ucx_backend.h', 'ucx_plugin.cpp',
+               ucx_hip_src, 'ucx_backend.h', 'ucx_plugin.cpp',
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
                include_directories: nixl_inc_dirs,
                install: false,
@@ -31,7 +37,7 @@ if 'UCX' in static_plugins
                name_prefix: 'libplugin_')  # Custom prefix for plugin libraries
 else
     ucx_backend_lib = shared_library('UCX',
-               'ucx_backend.cpp', 'ucx_backend.h', 'ucx_plugin.cpp',
+               ucx_hip_src, 'ucx_backend.h', 'ucx_plugin.cpp',
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
                include_directories: nixl_inc_dirs,
                install: true,

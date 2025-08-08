@@ -103,12 +103,12 @@ public:
     }
 
     void pop() {
-        cuCtxPopCurrent(nullptr);
+      (void)cuCtxPopCurrent(nullptr);
     }
 
     ~nixlUcxCudaDevicePrimaryCtx() {
         if (m_context != nullptr) {
-            cuDevicePrimaryCtxRelease(m_device);
+	  (void)cuDevicePrimaryCtxRelease(m_device);
         }
     }
 #endif
