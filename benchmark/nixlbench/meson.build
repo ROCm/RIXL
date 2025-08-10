@@ -69,10 +69,12 @@ else
         cuda_stub_path = cuda_lib_path + '/stubs'
     endif
     cuda_dep = declare_dependency(
-        link_args : ['-L' + cuda_lib_path, '-L' + cuda_stub_path, '-lcuda', '-lcudart'],
+        link_args : ['-L' + cuda_lib_path, '-lamdhip64', '-lhiprtc'],
         include_directories : include_directories(cuda_inc_path))
     cuda_available = true
 endif
+
+add_project_arguments('-D__HIP_PLATFORM_AMD__', '-Wno-deprecated-declarations', language: 'cpp')
 
 cuda_fabric_available = false
 if cuda_available
