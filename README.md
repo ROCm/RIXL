@@ -69,7 +69,7 @@ $ ninja-install
 ```
 ## nixlbench
 
-At the moment, only the UCX backend is support with ROCm. In equivalent of the NVSHMEM backend using rocSHMEM will be developed in the future. In addition, support for `HIP_MEM_HANDLE_TYPE_FABRIC` is also not available with the current commit.
+Only the UCX backend is support with ROCm in nixlbench as of today. The equivalent of the NVSHMEM backend using rocSHMEM will be developed in the future. In addition, support for `HIP_MEM_HANDLE_TYPE_FABRIC` is also not available with the current commit.
 
 ### Build & install
 ```
