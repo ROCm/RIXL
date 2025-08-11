@@ -15,13 +15,6 @@ The Python bindings provide access to the full NIXL API including:
 
 ## Installation
 
-### From PyPI
-
-The nixl python API and libraries, including UCX, are available directly through PyPI:
-
-```bash
-pip install nixl
-```
 
 ### From Source
 
