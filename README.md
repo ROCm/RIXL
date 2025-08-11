@@ -80,6 +80,17 @@ $ ninja
 $ ninja install
 ```
 
+### Python Interface
+
+NIXL provides Python bindings through pybind11. For detailed Python API documentation, see [docs/python_api.md](docs/python_api.md).
+
+You can build it from source :
+
+```bash
+# From the root nixl directory
+pip install .
+```
+
 ### Run a testcase
 Running a nixlbench testcase in two separate windows.
 
