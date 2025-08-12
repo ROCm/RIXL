@@ -13,8 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+hipify_cmd = find_program('hipify-perl')
+hipify_cpp = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+utils_hip_cpp = hipify_cpp.process('utils.cpp', extra_args: '-o')
+
+# need to figure out how to include the generated header file
+#hipify_h = generator(hipify_cmd,
+#                     output : ['@BASENAME@_hip.h'],
+#                     arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+#utils_hip_h = hipify_h.process('utils.h', extra_args: '-o')
+
 utils_sources = [
-  'utils.cpp',
+  utils_hip_cpp,
   'utils.h',
   'scope_guard.h'
 ]

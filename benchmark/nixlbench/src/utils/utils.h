@@ -28,8 +28,18 @@
 #include "runtime/runtime.h"
 
 #if HAVE_CUDA
-#include <cuda.h>
-#include <cuda_runtime.h>
+//#include <cuda.h>
+//#include <cuda_runtime.h>
+
+// Temporary workaround for HIP until we figure
+// out how to include the generated util_hip.h header file
+// in a portable manner
+#include <hip/hip_runtime.h>
+
+#define cudaSuccess hipSuccess
+#define CUDA_SUCCESS hipSuccess
+#define cudaGetErrorString hipGetErrorString
+#define cuGetErrorString hipDrvGetErrorString
 
 #define CHECK_CUDA_ERROR(result, message)                                           \
     do {                                                                            \
@@ -44,7 +54,7 @@
     do {                                                                            \
         if (result != CUDA_SUCCESS) {                                               \
             const char *error_str;                                                  \
-            cuGetErrorString(result, &error_str);                                   \
+            (void)cuGetErrorString(result, &error_str);    	    		    \
             std::cerr << "CUDA Driver: " << message << " (Error code: "             \
                       << result << " - " << error_str << ")" << std::endl;          \
             exit(EXIT_FAILURE);                                                     \
