@@ -82,7 +82,7 @@ private:
             break;
 #ifdef HAVE_CUDA
         case VRAM_SEG:
-            cudaFree(ptr);
+            (void)cudaFree(ptr);
             break;
 #endif
         default:

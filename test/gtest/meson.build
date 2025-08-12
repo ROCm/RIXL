@@ -53,12 +53,18 @@ endif
 # for loading plugins from build directory
 cpp_flags += '-DBUILD_DIR="' + meson.project_build_root() + '"'
 
+hipify_cmd = find_program('hipify-perl')
+hipify_src = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+test_transfer_hip_src = hipify_src.process('test_transfer.cpp', extra_args: '-o')
+
 gtest_sources = [
     'main.cpp',
     'mocks/gmock_engine.cpp',
     'plugin_manager.cpp',
     'error_handling.cpp',
-    'test_transfer.cpp',
+    test_transfer_hip_src,
     'metadata_exchange.cpp',
     'common.cpp',
     'query_mem.cpp'
