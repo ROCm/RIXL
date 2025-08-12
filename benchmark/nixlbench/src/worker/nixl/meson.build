@@ -13,8 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+hipify_cmd = find_program('hipify-perl')
+hipify_src = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+nixl_worker_hip_src = hipify_src.process('nixl_worker.cpp', extra_args: '-o')
+
 nixl_worker_sources = [
-  'nixl_worker.cpp',
+   nixl_worker_hip_src,
   'nixl_worker.h',
 ]
 
