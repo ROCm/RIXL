@@ -86,7 +86,7 @@ You can build it from source :
 
 ```bash
 # From the root nixl directory
-pip install .
+pip install . --config-settings=setup-args="-Dcudapath_inc=/opt/rocm/include" --config-settings=setup-args="-Dcudapath_lib=/opt/rocm/lib" --config-settings=setup-args="-Ducx_path="${_ucx_install_dir}" --config-settings=setup-args="-Ddisable_gds_backend=true"
 ```
 
 ### Run a testcase
