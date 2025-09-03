@@ -237,6 +237,7 @@ void doMemset(nixl_mem_t mem_type, int dev_id, void *addr, char byte, size_t len
     case VRAM_SEG:
         checkCudaError(cudaSetDevice(dev_id), "Failed to set device");
         checkCudaError(cudaMemset(addr, byte, len), "Failed to memset");
+        checkCudaError(cudaStreamSynchronize(0), "Failed to sync stream");
         break;
 #endif
     default:
@@ -255,6 +256,7 @@ void *getValidationPtr(nixl_mem_t mem_type, void *addr, size_t len)
     case VRAM_SEG: {
         void *ptr = calloc(len, 1);
         checkCudaError(cudaMemcpy(ptr, addr, len, cudaMemcpyDeviceToHost), "Failed to memcpy");
+        checkCudaError(cudaStreamSynchronize(0), "Failed to sync stream");
         return ptr;
     }
 #endif
