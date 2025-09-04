@@ -1,6 +1,6 @@
-# ROCm NIXL library
+# RIXL
 
-This is the ROCm port of the NIXL library.
+RIXL is the ROCm port of the NIXL library.
 The original code can be found at https://github.com/ai-dynamo/nixl.
 
 ## Prerequisites for source build
@@ -12,7 +12,7 @@ $ sudo apt install libaio-dev liburing-dev
 $ pip3 install meson==0.64.0
 $ pip3 install "pybind11[global]"
 ```
-NIXL was tested with UCX version 1.18.x. For ROCm builds, it is recommended to use the UCX version from `https://github.com/ROCm/ucx`
+RIXL was tested with UCX version 1.18.x and 1.19.0. For ROCm builds, it is recommended to use the UCX version from `https://github.com/ROCm/ucx`
 
 ```
 $ git clone https://github.com/ROCm/ucx -b v1.18.x
@@ -34,7 +34,7 @@ $ make -j
 ```
 
 ### ETCD (Optional, but recommended)
-NIXL can use ETCD for metadata distribution and coordination between nodes in distributed environments. To use ETCD with NIXL:
+RIXL can use ETCD for metadata distribution and coordination between nodes in distributed environments. To use ETCD with RIXL:
 #### ETCD Server and Client
 ```
 $ sudo apt install etcd etcd-server etcd-client
@@ -57,7 +57,7 @@ $ sudo make install // will install in /usr/local by default
 ## Build & install
 
 ```
-$ meson setup build/ --prefix=${_nixl_install_dir}
+$ meson setup build/ --prefix=${_rixl_install_dir}
                      -Ducx_path=${_ucx_install_dir}
                      -Ddisable_gds_backend=true
                      -Dcudapath_inc=/opt/rocm/include
@@ -74,14 +74,14 @@ Only the UCX backend is support with ROCm in nixlbench as of today. The equivale
 ### Build & install
 ```
 $ cd benchmark/nixlbench
-$ meson setup build -Dnixl_path=${_nixl_install_dir} -Dcudapath_inc=/opt/rocm/include -Dcudapath_lib=/opt/rocm/lib --prefix=${_nixlbench_install_dir}
+$ meson setup build -Dnixl_path=${_rixl_install_dir} -Dcudapath_inc=/opt/rocm/include -Dcudapath_lib=/opt/rocm/lib --prefix=${_nixlbench_install_dir}
 $ cd build
 $ ninja
 $ ninja install
 ```
 
 ### Python Interface
-NIXL provides Python bindings through pybind11. For detailed Python API documentation, see [docs/python_api.md](docs/python_api.md).
+RIXL provides Python bindings through pybind11. For detailed Python API documentation, see [docs/python_api.md](docs/python_api.md).
 You can build it from source :
 
 ```bash
@@ -94,13 +94,13 @@ Running a nixlbench testcase in two separate windows.
 
 Window 1:
 ```
-$ export LD_LIBRARY_PATH=${_nixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
+$ export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
 $ ./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
 ```
 
 Window 2:
 ```
-$ export LD_LIBRARY_PATH=${_nixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
+$ export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
 $ ./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
 ```
 
