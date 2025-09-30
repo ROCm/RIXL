@@ -30,6 +30,8 @@ ARG NIXL_PREFIX="/usr/local/nixl"
 ARG NIXL_PLUGIN_DIR="$NIXL_PREFIX/lib/$ARCH-linux-gnu/plugins"
 ARG NPROC
 ARG WHL_DEFAULT_PYTHON_VERSIONS="3.12"
+ARG LIBFABRIC_VERSION="v2.3.0"
+ARG LIBFABRIC_INSTALL_PATH="/usr/local"
 
 RUN apt-get update -y && \
     apt-get install -y ubuntu-keyring && \
@@ -57,6 +59,8 @@ RUN apt-get update -y && \
     build-essential \
     python3.12-dev \
     clang \
+    hwloc \
+    libhwloc-dev \
     libcurl4-openssl-dev libssl-dev uuid-dev zlib1g-dev # aws-sdk-cpp dependencies
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install \
@@ -69,6 +73,7 @@ RUN git clone --depth 1 https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git && 
     sed -i '/^find_dependency(cpprestsdk)$/d' etcd-cpp-api-config.in.cmake && \
     mkdir build && cd build && \
     cmake .. -DBUILD_ETCD_CORE_ONLY=ON -DCMAKE_BUILD_TYPE=Release && make -j${NPROC:-$(nproc)} && make install
+
 
 RUN git clone --recurse-submodules --depth 1 --shallow-submodules https://github.com/aws/aws-sdk-cpp.git --branch 1.11.581 && \
     mkdir aws_sdk_build && cd aws_sdk_build && \
@@ -93,24 +98,16 @@ RUN wget --tries=3 --waitretry=5 \
     rm rustup-init* && \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
-# Add Mellanox repository and install packages
-RUN ARCH_SUFFIX=$(if [ "${ARCH}" = "aarch64" ]; then echo "arm64-sbsa"; else echo "${ARCH}"; fi) && \
-    # Map OS names to Mellanox repository format
-    MELLANOX_OS=$(if [ "${OS}" = "ubuntu22" ]; then echo "ubuntu22.04"; elif [ "${OS}" = "ubuntu24" ]; then echo "ubuntu24.04"; else echo "${OS}"; fi) && \
-    export PKG_CONFIG_PATH="/opt/mellanox/doca/lib/${ARCH_SUFFIX}-linux-gnu/pkgconfig:/opt/mellanox/dpdk/lib/${ARCH_SUFFIX}-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" && \
-    curl -fsSL https://linux.mellanox.com/public/repo/doca/3.0.0/${MELLANOX_OS}/${ARCH_SUFFIX}/GPG-KEY-Mellanox.pub | \
-    gpg --dearmor | tee /usr/share/keyrings/mellanox-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/mellanox-archive-keyring.gpg] https://linux.mellanox.com/public/repo/doca/3.0.0/${MELLANOX_OS}/${ARCH_SUFFIX} ./" | \
-    tee /etc/apt/sources.list.d/mellanox.list && \
-    apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-        mlnx-dpdk mlnx-dpdk-dev \
-        doca-sdk-common doca-sdk-dma doca-sdk-dpdk-bridge \
-        doca-sdk-eth doca-sdk-flow doca-sdk-rdma doca-all
+# Add DOCA repository and install packages
+RUN ARCH_SUFFIX=$(if [ "${ARCH}" = "aarch64" ]; then echo "arm64"; else echo "amd64"; fi) && \
+    MELLANOX_OS=$(if [ "${OS}" = "ubuntu22" ]; then echo "ubuntu2204"; elif [ "${OS}" = "ubuntu24" ]; then echo "ubuntu2404"; else echo "${OS}"; fi) && \
+    wget https://www.mellanox.com/downloads/DOCA/DOCA_v3.1.0/host/doca-host_3.1.0-091000-25.07-${MELLANOX_OS}_${ARCH_SUFFIX}.deb && \
+    dpkg -i doca-host_3.1.0-091000-25.07-${MELLANOX_OS}_${ARCH_SUFFIX}.deb && \
+    apt-get update
 
 RUN if [ "$OS" = "ubuntu24" ]; then \
         apt-get install -y --no-install-recommends \
-            doca-sdk-gpunetio libdoca-sdk-gpunetio-dev; \
+            doca-sdk-gpunetio libdoca-sdk-gpunetio-dev libdoca-sdk-verbs-dev; \
     fi
 
 RUN rm -rf /usr/lib/ucx
@@ -138,10 +135,31 @@ RUN cd /usr/local/src && \
      make -j${NPROC:-$(nproc)} install-strip &&  \
      ldconfig
 
+# Build libfabric from source
+RUN wget --tries=3 --waitretry=5 --timeout=30 --read-timeout=60 \
+    "https://github.com/ofiwg/libfabric/releases/download/${LIBFABRIC_VERSION}/libfabric-${LIBFABRIC_VERSION#v}.tar.bz2" -O libfabric.tar.bz2 && \
+    tar xjf libfabric.tar.bz2 && rm libfabric.tar.bz2 && \
+    cd libfabric-* && \
+    ./autogen.sh && \
+    ./configure --prefix="${LIBFABRIC_INSTALL_PATH}" \
+                --disable-verbs \
+                --disable-psm3 \
+                --disable-opx \
+                --disable-usnic \
+                --disable-rstream \
+                --enable-efa \
+                --with-cuda=/usr/local/cuda \
+                --enable-cuda-dlopen \
+                --with-gdrcopy \
+                --enable-gdrcopy-dlopen && \
+    make -j${NPROC:-$(nproc)} && \
+    make install && \
+    ldconfig
+
 WORKDIR /workspace/nixl
 COPY . /workspace/nixl
 
-ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LIBFABRIC_INSTALL_PATH/lib:$LD_LIBRARY_PATH
 
 ENV VIRTUAL_ENV=/workspace/nixl/.venv
 RUN rm -rf $VIRTUAL_ENV && uv venv $VIRTUAL_ENV --python $DEFAULT_PYTHON_VERSION && \
@@ -154,7 +172,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends pybind11-dev
 ENV NIXL_PREFIX=$NIXL_PREFIX
 RUN rm -rf build && \
     mkdir build && \
-    uv run meson setup build/ --prefix=$NIXL_PREFIX && \
+    uv run meson setup -Dlibfabric_path=$LIBFABRIC_INSTALL_PATH build/ --prefix=$NIXL_PREFIX && \
     cd build && \
     ninja && \
     ninja install

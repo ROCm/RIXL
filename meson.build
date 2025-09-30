@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project('nixl', 'CPP', version: '0.5.1',
+project('nixl', 'CPP', version: '0.6.0',
     default_options: ['buildtype=debug',
                 'werror=true',
                 'cpp_std=c++17',
@@ -23,6 +23,7 @@ project('nixl', 'CPP', version: '0.5.1',
 
 # set up some global vars for compiler, platform, configuration, etc.
 cpp = meson.get_compiler('cpp')
+fs = import('fs')
 
 dl_dep = cpp.find_library('dl', required: true)
 rt_dep = cpp.find_library('rt', required: true)
@@ -52,6 +53,24 @@ cuda_stub_path = get_option('cudapath_stub')
 
 if cuda_lib_path == ''
     cuda_dep = dependency('cuda', required : false, modules : [ 'cudart', 'cuda' ])
+    if not cuda_dep.found()
+        # Meson is not detecting CUDA reliably on ARM, fallback to default
+        cuda_home = run_command('bash', '-c', 'echo $CUDA_HOME').stdout().strip()
+        if cuda_home == ''
+            cuda_home = '/usr/local/cuda'
+        endif
+        cuda_lib = cuda_home + '/lib64'
+        cuda_inc = cuda_home + '/include'
+        cuda_stub = cuda_lib + '/stubs'
+        if fs.exists(cuda_lib) and fs.exists(cuda_inc)
+            cuda_dep = declare_dependency(
+              link_args : ['-L' + cuda_lib, '-L' + cuda_stub, '-lcuda', '-lcudart'],
+              include_directories : include_directories(cuda_inc))
+            if cuda_dep.found()
+                message('Found CUDA installation through fallback method:', cuda_home)
+            endif
+        endif
+    endif
 else
     message('cuda lib path ', cuda_lib_path)
     if cuda_stub_path == ''
@@ -77,10 +96,15 @@ if cuda_dep.found()
 #    add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
 #    add_project_arguments('-rdc=true', language: 'cuda')
 
+#    # Refer to https://mesonbuild.com/Cuda-module.html
+#    add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
+#    add_project_arguments('-rdc=true', language: 'cuda')
 #    nvcc_flags_link = []
 #    nvcc_flags_link += ['-gencode=arch=compute_80,code=sm_80']
 #    nvcc_flags_link += ['-gencode=arch=compute_90,code=sm_90']
 #    add_project_link_arguments(nvcc_flags_link, language: 'cuda')
+else
+    warning('CUDA not found. UCX backend will be built without CUDA support, and some plugins will be disabled.')
 endif
 
 # DOCA
@@ -127,7 +151,53 @@ if ucx_path != ''
       include_directories : include_directories(ucx_inc_path))
   endif
 else
-  ucx_dep = dependency('ucx', modules: ['ucx::ucs', 'ucx::ucp', 'ucx::uct'])
+  ucx_dep = dependency('ucx', modules: ['ucx::ucs', 'ucx::ucp', 'ucx::uct'], required: false)
+endif
+
+libfabric_path = get_option('libfabric_path')
+if libfabric_path != ''
+  libfabric_lib_path = libfabric_path + '/lib'
+  libfabric_inc_path = libfabric_path + '/include'
+  # Check if path is absolute
+  if libfabric_inc_path.startswith('/')
+    libfabric_dep = declare_dependency(
+      link_args : ['-L' + libfabric_lib_path, '-lfabric'],
+      compile_args : ['-I' + libfabric_inc_path])
+  else
+    libfabric_dep = declare_dependency(
+      link_args : ['-L' + libfabric_lib_path, '-lfabric'],
+      include_directories : include_directories(libfabric_inc_path))
+  endif
+else
+  libfabric_dep = dependency('libfabric', required: false)
+endif
+
+# UCX GPU device API detection
+nvcc_prog = find_program('nvcc', required: false)
+ucx_gpu_device_api_available = false
+if ucx_dep.found() and cuda_dep.found() and nvcc_prog.found()
+    cuda = meson.get_compiler('cuda')
+    have_gpu_side = cuda.compiles('''
+            #include <ucp/api/device/ucp_device_impl.h>
+            int main() { return 0; }
+        ''', dependencies : ucx_dep, args: nvcc_flags)
+
+    have_host_side = cpp.compiles('''
+            #include <ucp/api/device/ucp_host.h>
+            int main() { return 0; }
+        ''', dependencies: ucx_dep)
+
+    if have_gpu_side and have_host_side
+        ucx_gpu_device_api_available = true
+        add_project_arguments('-DHAVE_UCX_GPU_DEVICE_API', language: ['cpp', 'cuda'])
+    endif
+
+    summary({
+    'UCX GPU Device API' : ucx_gpu_device_api_available,
+    'GPU-side compile'   : have_gpu_side,
+    'Host-side compile'  : have_host_side,
+    'nvcc available'     : nvcc_prog.found(),
+  }, section: 'UCX GPU Device API', bool_yn: true)
 endif
 
 if get_option('disable_gds_backend')
@@ -165,6 +235,7 @@ if get_option('buildtype') == 'debug'
 endif
 
 nixl_inc_dirs = include_directories('src/api/cpp', 'src/api/cpp/backend', 'src/infra', 'src/core')
+nixl_gpu_inc_dirs = include_directories('src/api/gpu/ucx')
 plugins_inc_dirs = include_directories('src/plugins')
 utils_inc_dirs = include_directories('src/utils')
 
@@ -187,6 +258,9 @@ if get_option('install_headers')
   install_headers('src/core/transfer_request.h', install_dir: prefix_inc)
   install_headers('src/core/agent_data.h', install_dir: prefix_inc)
   install_headers('src/infra/mem_section.h', install_dir: prefix_inc)
+  if ucx_gpu_device_api_available
+    install_headers('src/api/gpu/ucx/nixl_device.cuh', install_dir: prefix_inc + '/gpu/ucx')
+  endif
 endif
 
 # Doxygen documentation
