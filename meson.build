@@ -85,6 +85,8 @@ if cuda_dep.found()
 #    add_languages('CUDA')
 #    cuda = import('unstable-cuda')
      nvcc = 'hipcc'
+     doca_gpunetio_dep = disabler()
+     cuda_wheel_dir = 'nixl_hip'
 
 #    # Please extend with your arch if not present in the list
 #    nvcc_flags = []
@@ -108,7 +110,6 @@ if cuda_dep.found()
 #        doca_gpunetio_dep = dependency('doca-gpunetio', required : false)
 #    else
 #        warning('GPUNETIO plugin not supported in CUDA version: ' + nvcc.version())
-        doca_gpunetio_dep = disabler()
 #    endif
 #
     # Set the Python CUDA-specific wheel directory
