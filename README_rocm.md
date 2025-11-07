@@ -15,7 +15,7 @@ $ pip3 install "pybind11[global]"
 RIXL was tested with UCX version 1.18.x and 1.19.0. For ROCm builds, it is recommended to use the UCX version from `https://github.com/ROCm/ucx`
 
 ```
-$ git clone https://github.com/ROCm/ucx -b v1.18.x
+$ git clone https://github.com/ROCm/ucx -b v1.19.x
 $ cd ucx
 $ ./autogen.sh
 $ mkdir build
