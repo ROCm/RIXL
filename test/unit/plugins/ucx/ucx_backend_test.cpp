@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ *           Modifications Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -278,7 +279,6 @@ void *releaseValidationPtr(nixl_mem_t mem_type, void *addr)
 
 void
 allocateWrongGPUTest(nixlUcxEngine *ucx, int dev_id) {
-    //nixlBlobDesc desc = {0};
     nixlBlobDesc desc;
     nixlBackendMD* md;
     void* buf;
