@@ -18,9 +18,9 @@ requires = ["meson-python", "pybind11", "patchelf", "pyyaml", "types-PyYAML", "p
 build-backend = "mesonpy"
 
 [project]
-name = 'nixl-cu12'
+name = 'rixl'
 version = '0.7.1'
-description = 'NIXL Python API'
+description = 'RIXL Python API'
 readme = 'README.md'
 license = {file = 'LICENSE'}
 requires-python = '>=3.9'

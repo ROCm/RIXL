@@ -19,9 +19,9 @@ import uuid
 import pytest
 import torch
 
-import nixl_hip._bindings as bindings
-import nixl_hip._utils as utils
-from nixl_hip._api import nixl_agent, nixl_agent_config
+import rixl._bindings as bindings
+import rixl._utils as utils
+from rixl._api import nixl_agent, nixl_agent_config
 
 # NIXL pytest fixtures
 
