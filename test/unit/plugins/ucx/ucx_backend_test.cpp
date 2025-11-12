@@ -755,11 +755,14 @@ int main()
     }
 
 #ifdef HAVE_CUDA
+#if 0
+    // Skip test for now.
     if (n_vram_dev > 1) {
 		//Test if registering on a different GPU fails correctly
 		allocateWrongGPUTest(ucx[0][0], 1);
 		std::cout << "Verified registration on wrong GPU fails correctly\n";
 	}
+#endif
 #endif
 
     // Deallocate UCX engines

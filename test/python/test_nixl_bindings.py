@@ -17,9 +17,9 @@ import os
 import pickle
 import tempfile
 
-import nixl._bindings as nixl
-import nixl._utils as nixl_utils
-from nixl.logging import get_logger
+import rixl._bindings as nixl
+import rixl._utils as nixl_utils
+from rixl.logging import get_logger
 
 logger = get_logger(__name__)
 

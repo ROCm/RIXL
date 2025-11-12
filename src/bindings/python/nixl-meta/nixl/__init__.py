@@ -17,7 +17,7 @@ import importlib
 import sys
 
 # Try packages in order
-candidates = ["nixl_cu13", "nixl_cu12"]
+candidates = ["rixl"]
 _pkg = None
 for pkg in candidates:
     try:

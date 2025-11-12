@@ -18,7 +18,7 @@ project('nixl', 'CPP', version: '0.7.1',
     default_options: ['buildtype=debug',
                 'werror=true',
                 'cpp_std=c++17',
-                'prefix=/opt/rocm/hip_nixl'],
+                'prefix=/opt/rocm/rixl'],
     meson_version: '>= 0.64.0'
 )
 
@@ -87,7 +87,7 @@ if cuda_dep.found()
 #    cuda = import('unstable-cuda')
      nvcc = 'hipcc'
      doca_gpunetio_dep = disabler()
-     cuda_wheel_dir = 'nixl_hip'
+     cuda_wheel_dir = 'rixl'
 
 #    # Please extend with your arch if not present in the list
 #    nvcc_flags = []
