@@ -278,26 +278,6 @@ void *releaseValidationPtr(nixl_mem_t mem_type, void *addr)
 }
 
 void
-allocateWrongGPUTest(nixlUcxEngine *ucx, int dev_id) {
-    nixlBlobDesc desc;
-    nixlBackendMD* md;
-    void* buf;
-
-    desc.devId = 0;
-    desc.len = 4;
-    allocateBuffer(VRAM_SEG, dev_id, desc.len, buf);
-
-    desc.devId = dev_id;
-    desc.addr = (uint64_t) buf;
-
-    int ret = ucx->registerMem(desc, VRAM_SEG, md);
-
-    nixl_exit_on_failure((ret == NIXL_ERR_NOT_SUPPORTED), "Failed to register memory", "test");
-
-    releaseBuffer(VRAM_SEG, dev_id, buf);
-}
-
-void
 allocateAndRegister(nixlUcxEngine *ucx,
                     int dev_id,
                     nixl_mem_t mem_type,
@@ -753,17 +733,6 @@ int main()
         }
 #endif
     }
-
-#ifdef HAVE_CUDA
-#if 0
-    // Skip test for now.
-    if (n_vram_dev > 1) {
-		//Test if registering on a different GPU fails correctly
-		allocateWrongGPUTest(ucx[0][0], 1);
-		std::cout << "Verified registration on wrong GPU fails correctly\n";
-	}
-#endif
-#endif
 
     // Deallocate UCX engines
     for(int i = 0; i < 2; i++) {
