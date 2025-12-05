@@ -15,10 +15,6 @@
 
 if ucx_dep.found()
     subdir('ucx')
-<<<<<<< HEAD
-#    subdir('ucx_mo')
-=======
->>>>>>> nixl/main
 endif
 
 subdir('posix')  # Always try to build POSIX backend, it will handle its own dependencies

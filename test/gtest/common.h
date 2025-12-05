@@ -28,7 +28,15 @@
 #include "gtest/gtest.h"
 
 #ifdef HAVE_CUDA
-#include <cuda_runtime.h>
+// Temporary workaround for HIP until we figure
+// out how to include the generated util_hip.h header file
+// in a portable manner
+// #include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
+
+#define cudaSuccess hipSuccess
+#define cudaGetDeviceCount hipGetDeviceCount
+
 #endif
 
 namespace gtest {
