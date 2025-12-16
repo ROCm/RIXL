@@ -51,85 +51,126 @@ endif
 abseil_proj = subproject('abseil-cpp')
 taskflow_proj = dependency('taskflow', fallback: ['taskflow', 'taskflow_dep'])
 
-cuda_inc_path = get_option('cudapath_inc')
-cuda_lib_path = get_option('cudapath_lib')
-cuda_stub_path = get_option('cudapath_stub')
+use_rocm = get_option('use_rocm')
 
-if cuda_lib_path == ''
-    cuda_dep = dependency('cuda', required : false, modules : [ 'cudart', 'cuda' ])
-    if not cuda_dep.found()
-        # Meson is not detecting CUDA reliably on ARM, fallback to default
-        cuda_home = run_command('bash', '-c', 'echo $CUDA_HOME').stdout().strip()
-        if cuda_home == ''
-            cuda_home = '/usr/local/cuda'
+if use_rocm
+    # if `rocm_path` is not set, try default location
+    rocm_path = get_option('rocm_path')
+    if rocm_path == ''
+        rocm_path = '/opt/rocm'
+        if not fs.exists(rocm_path)
+            error('ROCm not found in default location (override with `-Drocm_path` ?): ' + rocm_path)
         endif
-        cuda_lib = cuda_home + '/lib64'
-        cuda_inc = cuda_home + '/include'
-        cuda_stub = cuda_lib + '/stubs'
-        if fs.exists(cuda_lib) and fs.exists(cuda_inc)
-            cuda_dep = declare_dependency(
-              link_args : ['-L' + cuda_lib, '-L' + cuda_stub, '-lcuda', '-lcudart'],
-              include_directories : include_directories(cuda_inc))
-            if cuda_dep.found()
-                message('Found CUDA installation through fallback method:', cuda_home)
+    endif
+
+    # Try to resolve ROCM lib and include folders
+    rocm_lib_path = rocm_path + '/lib'
+    rocm_inc_path = rocm_path + '/include'
+
+    if not fs.exists(rocm_inc_path)
+        error('ROCm path is valid but include folder could not be resolved at ' + rocm_inc_path)
+    endif
+
+    if not fs.exists(rocm_lib_path)
+        error('ROCm path is valid but library folder could not be resolved at ' + rocm_lib_path)
+    endif
+
+    # TODO: can we try and properly resolve these libraries?
+    rocm_dep = declare_dependency(
+        link_args : ['-L' + rocm_lib_path, '-lamdhip64', '-lhiprtc'],
+        include_directories : include_directories(rocm_inc_path))
+    
+    if rocm_dep.found()
+         nvcc = 'hipcc'
+         doca_gpunetio_dep = disabler()
+         cuda_wheel_dir = 'rixl'
+         message('Found ROCm installation:', rocm_path)
+    else
+         error('Could not use ROCm:', rocm_path)
+    endif
+
+    # fall-through and use `cuda_dep`
+    cuda_dep = rocm_dep
+else
+    cuda_inc_path = get_option('cudapath_inc')
+    cuda_lib_path = get_option('cudapath_lib')
+    cuda_stub_path = get_option('cudapath_stub')
+
+    if cuda_lib_path == ''
+        cuda_dep = dependency('cuda', required : false, modules : [ 'cudart', 'cuda' ])
+        if not cuda_dep.found()
+            # Meson is not detecting CUDA reliably on ARM, fallback to default
+            cuda_home = run_command('bash', '-c', 'echo $CUDA_HOME').stdout().strip()
+            if cuda_home == ''
+                cuda_home = '/usr/local/cuda'
+            endif
+            cuda_lib = cuda_home + '/lib64'
+            cuda_inc = cuda_home + '/include'
+            cuda_stub = cuda_lib + '/stubs'
+            if fs.exists(cuda_lib) and fs.exists(cuda_inc)
+                cuda_dep = declare_dependency(
+                  link_args : ['-L' + cuda_lib, '-L' + cuda_stub, '-lcuda', '-lcudart'],
+                  include_directories : include_directories(cuda_inc))
+                if cuda_dep.found()
+                    message('Found CUDA installation through fallback method:', cuda_home)
+                endif
             endif
         endif
+    else
+        message('cuda lib path ', cuda_lib_path)
+        if cuda_stub_path == ''
+            cuda_stub_path = cuda_lib_path + '/stubs'
+        endif
+        cuda_dep = declare_dependency(
+        link_args : ['-L' + cuda_lib_path, '-lamdhip64', '-lhiprtc'],
+        include_directories : include_directories(cuda_inc_path))
     endif
-else
-    message('cuda lib path ', cuda_lib_path)
-    if cuda_stub_path == ''
-        cuda_stub_path = cuda_lib_path + '/stubs'
+
+    if cuda_dep.found()
+        add_languages('CUDA')
+        cuda = import('unstable-cuda')
+        nvcc = 'hipcc'
+        doca_gpunetio_dep = disabler()
+        cuda_wheel_dir = 'rixl'
+
+        # Please extend with your arch if not present in the list
+        nvcc_flags = []
+        nvcc_flags += ['-gencode', 'arch=compute_80,code=sm_80']
+        nvcc_flags += ['-gencode', 'arch=compute_90,code=sm_90']
+        add_project_arguments(nvcc_flags, language: 'cuda')
+    
+        # Refer to https://mesonbuild.com/Cuda-module.html
+        add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
+        add_project_arguments('-rdc=true', language: 'cuda')
+        # Refer to https://mesonbuild.com/Cuda-module.html
+        add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
+        add_project_arguments('-rdc=true', language: 'cuda')
+        nvcc_flags_link = []
+        nvcc_flags_link += ['-gencode=arch=compute_80,code=sm_80']
+        nvcc_flags_link += ['-gencode=arch=compute_90,code=sm_90']
+        add_project_link_arguments(nvcc_flags_link, language: 'cuda')
+        message('nvcc version: ' + nvcc.version())
+        if nvcc.version().version_compare('>=12.8') and nvcc.version().version_compare('<13.0')
+            doca_gpunetio_dep = dependency('doca-gpunetio', required : false)
+        else
+            warning('GPUNETIO plugin not supported in CUDA version: ' + nvcc.version())
+        endif
+    
+        # Set the Python CUDA-specific wheel directory
+        cuda_version_major = nvcc.version().split('.')[0]
+        if cuda_version_major == '12'
+            cuda_wheel_dir = 'nixl_cu12'
+        elif cuda_version_major == '13'
+            cuda_wheel_dir = 'nixl_cu13'
+        else
+            error('Unsupported CUDA version: ' + cuda_version_major)
+        endif
+    else
+        warning('CUDA not found. UCX backend will be built without CUDA support, and some plugins will be disabled.')
+        doca_gpunetio_dep = disabler()
+        warning('CUDA not found, cannot autodetect wheel dir; defaulting to nixl_cu12')
+        cuda_wheel_dir = 'nixl_cu12'
     endif
-    cuda_dep = declare_dependency(
-    link_args : ['-L' + cuda_lib_path, '-lamdhip64', '-lhiprtc'],
-    include_directories : include_directories(cuda_inc_path))
-endif
-
-if cuda_dep.found()
-#    add_languages('CUDA')
-#    cuda = import('unstable-cuda')
-     nvcc = 'hipcc'
-     doca_gpunetio_dep = disabler()
-     cuda_wheel_dir = 'rixl'
-
-#    # Please extend with your arch if not present in the list
-#    nvcc_flags = []
-#    nvcc_flags += ['-gencode', 'arch=compute_80,code=sm_80']
-#    nvcc_flags += ['-gencode', 'arch=compute_90,code=sm_90']
-#    add_project_arguments(nvcc_flags, language: 'cuda')
-#
-#    # Refer to https://mesonbuild.com/Cuda-module.html
-#    add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
-#    add_project_arguments('-rdc=true', language: 'cuda')
-
-#    # Refer to https://mesonbuild.com/Cuda-module.html
-#    add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
-#    add_project_arguments('-rdc=true', language: 'cuda')
-#    nvcc_flags_link = []
-#    nvcc_flags_link += ['-gencode=arch=compute_80,code=sm_80']
-#    nvcc_flags_link += ['-gencode=arch=compute_90,code=sm_90']
-#    add_project_link_arguments(nvcc_flags_link, language: 'cuda')
-#    message('nvcc version: ' + nvcc.version())
-#    if nvcc.version().version_compare('>=12.8') and nvcc.version().version_compare('<13.0')
-#        doca_gpunetio_dep = dependency('doca-gpunetio', required : false)
-#    else
-#        warning('GPUNETIO plugin not supported in CUDA version: ' + nvcc.version())
-#    endif
-#
-    # Set the Python CUDA-specific wheel directory
-#    cuda_version_major = nvcc.version().split('.')[0]
-#    if cuda_version_major == '12'
-#        cuda_wheel_dir = 'nixl_cu12'
-#    elif cuda_version_major == '13'
-#        cuda_wheel_dir = 'nixl_cu13'
-#    else
-#        error('Unsupported CUDA version: ' + cuda_version_major)
-#    endif
-else
-    warning('CUDA not found. UCX backend will be built without CUDA support, and some plugins will be disabled.')
-    doca_gpunetio_dep = disabler()
-    warning('CUDA not found, cannot autodetect wheel dir; defaulting to nixl_cu12')
-    cuda_wheel_dir = 'nixl_cu12'
 endif
 
 # Check for etcd-cpp-api - use multiple methods for discovery
