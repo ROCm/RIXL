@@ -79,7 +79,7 @@ if use_rocm
     rocm_dep = declare_dependency(
         link_args : ['-L' + rocm_lib_path, '-lamdhip64', '-lhiprtc'],
         include_directories : include_directories(rocm_inc_path))
-    
+
     if rocm_dep.found()
          nvcc = 'hipcc'
          doca_gpunetio_dep = disabler()
@@ -138,7 +138,7 @@ else
         nvcc_flags += ['-gencode', 'arch=compute_80,code=sm_80']
         nvcc_flags += ['-gencode', 'arch=compute_90,code=sm_90']
         add_project_arguments(nvcc_flags, language: 'cuda')
-    
+
         # Refer to https://mesonbuild.com/Cuda-module.html
         add_project_arguments('-forward-unknown-to-host-compiler', language: 'cuda')
         add_project_arguments('-rdc=true', language: 'cuda')
@@ -155,7 +155,7 @@ else
         else
             warning('GPUNETIO plugin not supported in CUDA version: ' + nvcc.version())
         endif
-    
+
         # Set the Python CUDA-specific wheel directory
         cuda_version_major = nvcc.version().split('.')[0]
         if cuda_version_major == '12'

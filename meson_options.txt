@@ -28,7 +28,7 @@ option('static_plugins', type: 'string', value: '', description: 'Plugins to be 
 option('build_docs', type: 'boolean', value: false, description: 'Build Doxygen documentation')
 option('log_level', type: 'combo', choices: ['trace', 'debug', 'info', 'warning', 'error', 'fatal', 'auto'], value: 'auto', description: 'Log Level (auto: auto-detect based on build type: trace for debug builds, info for release builds)')
 option('rust', type: 'boolean', value: false, description: 'Build Rust bindings')
-option('rocm_path', type: 'string', description: 'Path to the ROCm installation directory')
+option('rocm_path', type: 'string', value: '', description: 'Path to the ROCm installation directory')
 option('use_rocm', type: 'boolean', value: true, description: 'Use ROCm (default: true)')
 
 # Tests

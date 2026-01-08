@@ -28,9 +28,31 @@ fs = import('fs')
 
 # Allow overriding paths through environment variables
 # CUDA
+
 cuda_inc_path = get_option('cudapath_inc')
 cuda_lib_path = get_option('cudapath_lib')
 cuda_stub_path = get_option('cudapath_stub')
+
+use_rocm = get_option('use_rocm')
+
+if use_rocm
+    # if `rocm_path` is not set, try default location
+    rocm_path = get_option('rocm_path')
+    if rocm_path == ''
+        rocm_path = '/opt/rocm'
+        if not fs.exists(rocm_path)
+            error('ROCm not found in default location (override with `-Drocm_path` ?): ' + rocm_path)
+        endif
+    endif
+
+    # Try to resolve ROCM lib and include folders
+    rocm_lib_path = rocm_path + '/lib'
+    rocm_inc_path = rocm_path + '/include'
+
+    cuda_lib_path = rocm_path + '/lib'
+    cuda_inc_path = rocm_path + '/include'
+endif
+
 # ETCD
 etcd_inc_path = get_option('etcd_inc_path')
 etcd_lib_path = get_option('etcd_lib_path')
