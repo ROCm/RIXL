@@ -5,22 +5,22 @@ The original code can be found at https://github.com/ai-dynamo/nixl.
 
 ## Prerequisites for source build
 ### Ubuntu:
-```
-$ sudo apt install build-essential cmake pkg-config
-$ sudo apt install libaio-dev liburing-dev
+```bash
+sudo apt install build-essential cmake pkg-config
+sudo apt install libaio-dev liburing-dev
 
-$ pip3 install meson==0.64.0
-$ pip3 install "pybind11[global]"
+pip3 install meson==0.64.0
+pip3 install "pybind11[global]"
 ```
 RIXL was tested with UCX version 1.18.x and 1.19.0. For ROCm builds, it is recommended to use the UCX version from `https://github.com/ROCm/ucx`
 
-```
-$ git clone https://github.com/ROCm/ucx -b v1.19.x
-$ cd ucx
-$ ./autogen.sh
-$ mkdir build
-$ cd build
-$ ./configure                          \
+```bash
+git clone https://github.com/ROCm/ucx -b v1.19.x
+cd ucx
+./autogen.sh
+mkdir build
+cd build
+./configure                            \
     --enable-shared                    \
     --disable-static                   \
     --disable-doxygen-doc              \
@@ -30,54 +30,60 @@ $ ./configure                          \
     --with-verbs                       \
     --with-dm                          \
     --enable-mt
-$ make -j
+make -j
 ```
 
 ### ETCD (Optional, but recommended)
 RIXL can use ETCD for metadata distribution and coordination between nodes in distributed environments. To use ETCD with RIXL:
 #### ETCD Server and Client
 ```
-$ sudo apt install etcd etcd-server etcd-client
+sudo apt install etcd etcd-server etcd-client
 ```
 
 #### ETCD CPP API
 Installed from https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3
 
-```
-$ sudo apt install libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc
-$ sudo apt install libcpprest-dev
-$ git clone https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git
-$ cd etcd-cpp-apiv3
-$ mkdir build && cd build
-$ cmake ..
-$ make -j$(nproc)
-$ sudo make install // will install in /usr/local by default
+```bash
+sudo apt install libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc
+sudo apt install libcpprest-dev
+git clone https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git
+cd etcd-cpp-apiv3
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install # will install in /usr/local by default
 ```
 
 ## Build & install
 
-```
-$ meson setup build/ --prefix=${_rixl_install_dir}
-                     -Ducx_path=${_ucx_install_dir}
-                     -Ddisable_gds_backend=true
-                     -Dcudapath_inc=/opt/rocm/include
-                     -Dcudapath_lib=/opt/rocm/lib
+```bash
+meson setup build/ --prefix=${_rixl_install_dir}   \
+                   -Ducx_path=${_ucx_install_dir}  \
+                   -Drocm_path=/opt/rocm
 
-$ cd build
-$ ninja
-$ ninja-install
+cd build
+ninja
+ninja-install
 ```
+
+Options:
+* `rocm_path`: allows to override the ROCm default location (`/opt/rocm`)
+* `disable_gds_backend`: defaults to `true` (disable) for ROCm builds
+
 ## nixlbench
 
 Only the UCX backend is support with ROCm in nixlbench as of today. The equivalent of the NVSHMEM backend using rocSHMEM will be developed in the future. In addition, support for `HIP_MEM_HANDLE_TYPE_FABRIC` is also not available with the current commit.
 
 ### Build & install
-```
-$ cd benchmark/nixlbench
-$ meson setup build -Dnixl_path=${_rixl_install_dir} -Dcudapath_inc=/opt/rocm/include -Dcudapath_lib=/opt/rocm/lib --prefix=${_nixlbench_install_dir}
-$ cd build
-$ ninja
-$ ninja install
+```bash
+cd benchmark/nixlbench
+meson setup build                       \
+    -Dnixl_path=${_rixl_install_dir}    \
+    -Drocm_path=/opt/rocm               \
+    --prefix=${_nixlbench_install_dir}
+cd build
+ninja
+ninja install
 ```
 
 ### Python Interface
@@ -86,22 +92,36 @@ You can build it from source :
 
 ```bash
 # From the root nixl directory
-pip install . --config-settings=setup-args="-Dcudapath_inc=/opt/rocm/include" --config-settings=setup-args="-Dcudapath_lib=/opt/rocm/lib" --config-settings=setup-args="-Ducx_path="${_ucx_install_dir}" --config-settings=setup-args="-Ddisable_gds_backend=true"
+pip install .                                                   \
+ --config-settings=setup-args="-Drocm_path=/opt/rocm"           \
+ --config-settings=setup-args="-Ducx_path=${_ucx_install_dir}"
+```
+
+### Build a wheel
+
+First, build and install RIXL, then build a wheel as follow:
+
+```bash
+./contrib/build-wheel.sh                                                  \
+    --output-dir ./dist                                                   \
+    --rocm-dir /opt/rocm                                                  \
+    --ucx-plugins-dir ${_ucx_install_dir}/lib/ucx                         \
+    --nixl-plugins-dir ${_rixl_install_dir}/lib/x86_64-linux-gnu/plugins
 ```
 
 ### Run a testcase
 Running a nixlbench testcase in two separate windows.
 
 Window 1:
-```
-$ export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
-$ ./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
+```bash
+export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
+./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
 ```
 
 Window 2:
-```
-$ export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
-$ ./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
+```bash
+export LD_LIBRARY_PATH=${_rixl_install_dir}/lib/x86_64-linux-gnu/:${_ucx_install_dir}/lib:/opt/rocm/lib
+./nixlbench --etcd-endpoints http://localhost:2379 --backend UCX --initiator_seg_type VRAM
 ```
 
 The output in Window 1 should like approximatly as follows (please ignore the performance numbers):

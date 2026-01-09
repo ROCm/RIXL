@@ -21,3 +21,5 @@ option('etcd_lib_path', type: 'string', value: '', description: 'Path to ETCD C+
 option('nixl_path', type: 'string', value: '/usr/local', description: 'Path to NiXL')
 option('nvshmem_inc_path', type: 'string', value: '', description: 'Path to NVSHMEM include directory')
 option('nvshmem_lib_path', type: 'string', value: '', description: 'Path to NVSHMEM library directory')
+option('rocm_path', type: 'string', value: '', description: 'Path to the ROCm installation directory')
+option('use_rocm', type: 'boolean', value: true, description: 'Use ROCm (default: true)')
