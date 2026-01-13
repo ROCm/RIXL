@@ -54,7 +54,6 @@
         }                                                                           \
     } while (0)
 
-<<<<<<< HEAD
 #define CHECK_CUDA_DRIVER_ERROR(result, message)                                           \
     do {                                                                                   \
         if (result != CUDA_SUCCESS) {                                                      \

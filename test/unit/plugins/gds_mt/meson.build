@@ -17,7 +17,13 @@ if cuda_dep.found() == false
     subdir_done()
 endif
 
-nixl_gds_mt_app = executable('nixl_gds_mt_test', 'nixl_gds_mt_test.cpp',
-                             dependencies: [nixl_dep, nixl_infra, cuda_dep],
-                             include_directories: [nixl_inc_dirs, utils_inc_dirs],
-                             install: true)
+hipify_cmd = find_program('hipify-perl')
+hipify_src = generator(hipify_cmd,
+                       output : ['@BASENAME@_hip.cpp'],
+                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
+nixl_gds_hip_src = hipify_src.process('nixl_gds_mt_test.cpp', extra_args: '-o')
+
+nixl_gds_mt_app = executable('nixl_gds_mt_test', nixl_gds_hip_src,
+                              dependencies: [nixl_dep, nixl_infra, cuda_dep],
+                              include_directories: [nixl_inc_dirs, utils_inc_dirs],
+                              install: true)
