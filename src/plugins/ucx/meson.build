@@ -16,11 +16,6 @@
 ucx_utils_dep = declare_dependency(link_with: ucx_utils_lib, include_directories: utils_inc_dirs )
 asio_dep = [dependency('asio', required: true)]
 
-compile_flags = []
-if cuda_dep.found()
-    compile_flags = [ '-DHAVE_CUDA' ]
-endif
-
 hipify_cmd = find_program('hipify-perl')
 hipify_src = generator(hipify_cmd,
                        output : ['@BASENAME@_hip.cpp'],
