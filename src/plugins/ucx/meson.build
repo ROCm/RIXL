@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,6 @@ if 'UCX' in static_plugins
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
                include_directories: [nixl_inc_dirs,'/opt/rocm/include'],
                install: false,
-               cpp_args : compile_flags,
                name_prefix: 'libplugin_')  # Custom prefix for plugin libraries
 else
     ucx_backend_lib = shared_library('UCX',
@@ -41,10 +40,11 @@ else
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
                include_directories: [nixl_inc_dirs,'/opt/rocm/include'],
                install: true,
-               cpp_args : compile_flags + ['-fPIC'],
+               cpp_args : ['-fPIC'],
                name_prefix: 'libplugin_',  # Custom prefix for plugin libraries
                install_dir: plugin_install_dir,
-               install_rpath: '$ORIGIN/..')
+               build_rpath: get_option('ucx_path') != '' ? get_option('ucx_path') + '/lib' : '',
+               install_rpath: get_option('ucx_path') != '' ? '$ORIGIN/..:' + get_option('ucx_path') + '/lib' : '$ORIGIN/..')
 
     if get_option('buildtype') == 'debug'
         run_command('sh', '-c',

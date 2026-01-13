@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,6 @@
 #include "telemetry_event.h"
 
 constexpr char TELEMETRY_ENABLED_VAR[] = "NIXL_TELEMETRY_ENABLE";
-constexpr char TELEMETRY_DIR_VAR[] = "NIXL_TELEMETRY_DIR";
 static const std::vector<std::vector<std::string>> illegal_plugin_combinations = {
     {"GDS", "GDS_MT"},
 };
@@ -119,6 +118,7 @@ nixlAgentData::nixlAgentData(const std::string &name, const nixlAgentConfig &cfg
         NIXL_DEBUG << "NIXL ETCD is disabled";
     }
 #else
+    useEtcd = false;
     NIXL_DEBUG << "NIXL ETCD is excluded";
 #endif // HAVE_ETCD
     if (name.empty())
@@ -126,19 +126,12 @@ nixlAgentData::nixlAgentData(const std::string &name, const nixlAgentConfig &cfg
 
     memorySection = new nixlLocalSection();
     const char *telemetry_env_val = std::getenv(TELEMETRY_ENABLED_VAR);
-    const char *telemetry_env_dir = std::getenv(TELEMETRY_DIR_VAR);
 
     if (telemetry_env_val != nullptr) {
         if (!strcasecmp(telemetry_env_val, "y") || !strcasecmp(telemetry_env_val, "1") ||
             !strcasecmp(telemetry_env_val, "yes") || !strcasecmp(telemetry_env_val, "on")) {
             telemetryEnabled = true;
-            if (telemetry_env_dir != nullptr) {
-                std::string telemetry_file = std::string(telemetry_env_dir) + "/" + name;
-                telemetry_ = std::make_unique<nixlTelemetry>(telemetry_file, backendEngines);
-                NIXL_DEBUG << "NIXL telemetry is enabled with output file: " << telemetry_file;
-            } else {
-                NIXL_DEBUG << "NIXL telemetry is enabled without an output file";
-            }
+            telemetry_ = std::make_unique<nixlTelemetry>(name, backendEngines);
         } else if (cfg.captureTelemetry) {
             telemetryEnabled = true;
             NIXL_WARN << "NIXL telemetry is enabled through config, "
@@ -1696,7 +1689,10 @@ nixlAgent::invalidateRemoteMD(const std::string &remote_agent) {
         ret = NIXL_SUCCESS;
     }
 
-    if (ret != NIXL_SUCCESS)
+    if (ret == NIXL_ERR_NOT_FOUND)
+        NIXL_INFO << __FUNCTION__ << ": remote metadata for agent '" << remote_agent
+                  << "' not found.";
+    else if (ret != NIXL_SUCCESS)
         NIXL_ERROR_FUNC << "error invalidating remote metadata for agent '" << remote_agent
                         << "' with status " << ret;
     return ret;

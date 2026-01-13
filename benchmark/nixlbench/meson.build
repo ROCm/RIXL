@@ -1,5 +1,5 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#           Modifications Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#           Modifications Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project('nixlbench', 'CPP', version: '0.8.0',
+project('nixlbench', 'CPP', version: '0.9.0',
     default_options: ['buildtype=release',
                 'werror=true',
                 'cpp_std=c++17',
@@ -128,14 +128,17 @@ if cuda_available
     endif
 endif
 
-# GFlags
-gflags_dep = dependency('gflags', required: true)
-
 # OpenMP
 openmp_dep = dependency('openmp', required: true)
 
 # Check for etcd-cpp-api - use multiple methods for discovery
 etcd_dep = dependency('etcd-cpp-api', required : false)
+
+# Check for cxxopts
+cxxopts_dep = dependency('cxxopts', required: true)
+
+# Check for tomlplusplus (header only)
+tomlplusplus_dep = dependency('tomlplusplus', required: true, default_options: ['build_lib=false', 'compile_library=false'])
 
 # Ensure etcd is available
 etcd_available = etcd_dep.found()
@@ -191,7 +194,7 @@ configure_file(
     install_dir: get_option('includedir') / 'nixlbench'
 )
 
-deps = [gflags_dep, nixl_lib, nixl_build, nixl_serdes, openmp_dep]
+deps = [nixl_lib, nixl_build, nixl_serdes, openmp_dep, cxxopts_dep, tomlplusplus_dep]
 args = []
 if etcd_available
     deps += [etcd_dep]
@@ -233,7 +236,7 @@ if nvshmem_available
     nvcc_args += ['-L' + meson.current_build_dir() + '/src/utils']
     nvcc_args += ['-L' + meson.current_build_dir() + '/src/runtime']
     nvcc_args += ['-L' + meson.current_build_dir() + '/src/worker']
-    nvcc_args += ['-lnixl', '-lnixl_build', '-lserdes', '-lgflags', '-lcuda', '-lcudart', '-lnvshmem']
+    nvcc_args += ['-lnixl', '-lnixl_build', '-lserdes', '-lcuda', '-lcudart', '-lnvshmem']
     nvcc_args += args
     nvcc_cmd_files = [
                  meson.current_build_dir() + '/src/utils/libutils.a.p/utils.cpp.o',
