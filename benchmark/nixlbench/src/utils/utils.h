@@ -27,7 +27,14 @@
 #include <vector>
 #include <optional>
 #include <cxxopts.hpp>
+
+// RIXL hack: compiling with g++ generates an error due to the way __noinline__
+// is defined in rocm/include/hip/amd_detail/host_defines.h for non-clang compilers.
+// This is a temporary workaround. Together with -Wno-error it makes it work.
+#undef __has_attribute
+#define __has_attribute(x) 0
 #include <toml++/toml.hpp>
+
 #include <utils/common/nixl_time.h>
 #include "runtime/runtime.h"
 
