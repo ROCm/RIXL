@@ -416,7 +416,7 @@ main (int argc, char *argv[]) {
 
         if (use_vram) {
             // Allocate and initialize VRAM buffer
-            (void)cudaSetDevice (devId);
+            (void)cudaSetDevice(devId);
             if (cudaMalloc (&vram_addr[i], transfer_size) != cudaSuccess) {
                 std::cerr << "CUDA malloc failed\n";
                 goto cleanup;
@@ -589,7 +589,7 @@ main (int argc, char *argv[]) {
         for (i = 0; i < num_transfers; i++) {
             if (use_vram && vram_addr[i]) {
                 int devId = i % num_gpus;
-                (void)cudaSetDevice (devId);
+                (void)cudaSetDevice(devId);
                 if (clear_gpu_buffer (vram_addr[i], transfer_size) != cudaSuccess) {
                     std::cerr << "Failed to clear VRAM buffer " << i << std::endl;
                     goto cleanup;
@@ -686,7 +686,7 @@ main (int argc, char *argv[]) {
         for (i = 0; i < num_transfers; i++) {
             if (use_vram) {
                 int devId = i % num_gpus;
-                (void)cudaSetDevice (devId);
+                (void)cudaSetDevice(devId);
                 if (!validate_gpu_buffer (vram_addr[i], transfer_size)) {
                     std::cerr << "VRAM buffer " << i << " validation failed\n";
                     goto cleanup;
@@ -742,7 +742,7 @@ cleanup:
     if (use_vram) {
         agent.deregisterMem (vram_for_gds_mt);
         for (i = 0; i < num_transfers; i++) {
-            if (vram_addr[i]) (void)cudaFree (vram_addr[i]);
+            if (vram_addr[i]) (void)cudaFree(vram_addr[i]);
         }
         delete[] vram_addr;
         delete[] vram_buf;

@@ -65,7 +65,7 @@
     do {                                                                                   \
         if (result != CUDA_SUCCESS) {                                                      \
             const char *error_str;                                                         \
-            (void)cuGetErrorString(result, &error_str);			\
+            (void)cuGetErrorString(result, &error_str);                                    \
             std::cerr << "CUDA Driver: " << message << " (Error code: " << result << " - " \
                       << error_str << ")" << std::endl;                                    \
             exit(EXIT_FAILURE);                                                            \
