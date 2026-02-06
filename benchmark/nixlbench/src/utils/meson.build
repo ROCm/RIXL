@@ -28,6 +28,8 @@ utils_hip_cpp = hipify_cpp.process('utils.cpp', extra_args: '-o')
 
 utils_sources = [
   utils_hip_cpp,
+  'neuron.cpp',
+  'neuron.h',
   'utils.h',
   'scope_guard.h'
 ]
@@ -36,7 +38,8 @@ utils_deps = [
   cuda_dep,
   openmp_dep,
   cxxopts_dep,
-  tomlplusplus_dep
+  tomlplusplus_dep,
+  dependency('dl', required: true)
 ]
 
 utils_lib = static_library('utils',

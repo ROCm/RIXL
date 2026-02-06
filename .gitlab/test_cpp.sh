@@ -25,6 +25,7 @@ TEXT_CLEAR="\033[0m"
 
 # Parse commandline arguments with first argument being the install directory.
 INSTALL_DIR=$1
+PREVDIR=$(dirname "$(readlink -f "$0")")
 
 if [ -z "$INSTALL_DIR" ]; then
     echo "Usage: $0 <install_dir>"
@@ -80,6 +81,7 @@ export NIXL_ETCD_NAMESPACE="/nixl/cpp_ci/${etcd_port}"
 etcd --listen-client-urls ${NIXL_ETCD_ENDPOINTS} --advertise-client-urls ${NIXL_ETCD_ENDPOINTS} \
      --listen-peer-urls ${NIXL_ETCD_PEER_URLS} --initial-advertise-peer-urls ${NIXL_ETCD_PEER_URLS} \
      --initial-cluster default=${NIXL_ETCD_PEER_URLS} &
+ETCD_PID=$!
 
 wait_for_etcd
 
@@ -129,4 +131,10 @@ echo "./bin/p2p_test disabled"
 echo "./bin/ucx_worker_test disabled"
 echo "${TEXT_CLEAR}"
 
-pkill etcd
+kill -9 $ETCD_PID 2>/dev/null || true
+
+sleep 5
+
+# Sample test for Azure Blob Plugin - should be changed to their gtest
+cd $PREVDIR
+./test_azure.sh

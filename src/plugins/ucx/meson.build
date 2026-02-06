@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ucx_utils_dep = declare_dependency(link_with: ucx_utils_lib, include_directories: utils_inc_dirs )
 asio_dep = [dependency('asio', required: true)]
 
 hipify_cmd = find_program('hipify-perl')
@@ -22,18 +21,39 @@ hipify_src = generator(hipify_cmd,
                        arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
 ucx_hip_src = hipify_src.process('ucx_backend.cpp', extra_args: '-o')
 
+ucx_backend_includes = include_directories('.')
+
+ucx_backend_sources = ['config.cpp',
+                       'gpu_xfer_req_h.cpp',
+                       'mem_list.cpp',
+                       'rkey.cpp',
+                       ucx_hip_src,
+                       'ucx_plugin.cpp',
+                       'ucx_utils.cpp']
+
+ucx_backend_dependencies = [asio_dep,
+                            cuda_dep,
+                            nixl_common_dep,
+                            nixl_infra,
+                            serdes_interface,
+                            thread_dep,
+                            ucx_dep]
+
+ucx_backend_include_directories = [nixl_inc_dirs,
+                                   utils_inc_dirs]
+
 if 'UCX' in static_plugins
     ucx_backend_lib = static_library('UCX',
-               ucx_hip_src, 'ucx_backend.h', 'ucx_plugin.cpp',
-               dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
-               include_directories: [nixl_inc_dirs,'/opt/rocm/include'],
+               ucx_backend_sources,
+               dependencies: ucx_backend_dependencies,
+               include_directories: ucx_backend_include_directories,
                install: false,
                name_prefix: 'libplugin_')  # Custom prefix for plugin libraries
 else
     ucx_backend_lib = shared_library('UCX',
-               ucx_hip_src, 'ucx_backend.h', 'ucx_plugin.cpp',
-               dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep, thread_dep, nixl_common_dep, asio_dep],
-               include_directories: [nixl_inc_dirs,'/opt/rocm/include'],
+               ucx_backend_sources,
+               dependencies: ucx_backend_dependencies,
+               include_directories: ucx_backend_include_directories,
                install: true,
                cpp_args : ['-fPIC'],
                name_prefix: 'libplugin_',  # Custom prefix for plugin libraries
@@ -49,4 +69,4 @@ else
     endif
 endif
 
-ucx_backend_interface = declare_dependency(link_with: ucx_backend_lib)
+ucx_backend_interface = declare_dependency(link_with: ucx_backend_lib, include_directories: ucx_backend_includes)

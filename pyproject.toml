@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,11 +18,13 @@ requires = ["meson-python", "pybind11", "patchelf", "pyyaml", "types-PyYAML", "p
 build-backend = "mesonpy"
 
 [project]
+
 name = 'rixl'
-version = '0.9.0'
+version = '0.10.0'
 description = 'RIXL Python API'
 readme = 'README_rocm.md'
-license = {file = 'LICENSE'}
+license = "MIT AND Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = '>=3.10'
 authors = [
   {name = "NIXL Developers", email = "nixl-developers@nvidia.com"}
