@@ -27,13 +27,14 @@ hipify_cmd = find_program('hipify-perl')
 hipify_src = generator(hipify_cmd,
                        output : ['@BASENAME@_hip.cpp'],
                        arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
-ucx_hip_src = hipify_src.process('ucx_backend_test.cpp', extra_args: '-o')
+ucx_backend_hip_src = hipify_src.process('ucx_backend_test.cpp', extra_args: '-o')
+ucx_worker_hip_src = hipify_src.process('ucx_worker_test.cpp', extra_args: '-o')
 
 ucx_backend_test_dep = [nixl_dep, nixl_infra, thread_dep] + ucx_test_dep + nixl_test_utils_dep
 ucx_test_include_directories = [nixl_inc_dirs, utils_inc_dirs]
 
 ucx_backend_test = executable('ucx_backend_test',
-        ucx_hip_src,
+        ucx_backend_hip_src,
         dependencies: ucx_backend_test_dep,
         include_directories: ucx_test_include_directories,
         cpp_args : cpp_args,
@@ -49,7 +50,7 @@ ucx_backend_multi = executable('ucx_backend_multi',
 if get_option('buildtype') != 'release'
 
     ucx_worker_bin = executable('ucx_worker_test',
-               'ucx_worker_test.cpp',
+               ucx_worker_hip_src,
                dependencies: ucx_test_dep,
                include_directories: ucx_test_include_directories,
                install: true)
@@ -62,7 +63,7 @@ if get_option('buildtype') != 'release'
 
     if cuda_dep.found()
         ucx_worker_cuda_bin = executable('ucx_worker_test_cuda',
-                       'ucx_worker_test.cpp',
+                       ucx_worker_hip_src,
                        dependencies: ucx_test_dep,
                        include_directories: ucx_test_include_directories,
                        cpp_args : '-DUSE_VRAM',

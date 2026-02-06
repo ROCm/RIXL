@@ -127,6 +127,7 @@ main() {
 #ifdef USE_VRAM
     checkCudaError(cudaMemset(buffer[1], 0xbb, buf_size), "Failed to memset");
     checkCudaError(cudaMemset(buffer[0], 0xda, buf_size), "Failed to memset");
+    checkCudaError(cudaStreamSynchronize(0), "Failed to synchronize");
 #else
     memset(buffer[1], 0xbb, buf_size);
     memset(buffer[0], 0xda, buf_size);
@@ -143,6 +144,7 @@ main() {
 #ifdef USE_VRAM
     checkCudaError(cudaMemcpy(chk_buffer, buffer[1], 128, cudaMemcpyDeviceToHost),
                    "Failed to memcpy");
+    checkCudaError(cudaStreamSynchronize(0), "Failed to synchronize");
 #else
     memcpy(chk_buffer, buffer[1], buf_size);
 #endif
@@ -162,6 +164,7 @@ main() {
     checkCudaError(cudaMemset(buffer[0], 0xbb, buf_size), "Failed to memset");
     checkCudaError(cudaMemset(buffer[1], 0xbb, buf_size / 3), "Failed to memset");
     checkCudaError(cudaMemset(buffer[1] + 32, 0xda, buf_size - buf_size / 3), "Failed to memset");
+    checkCudaError(cudaStreamSynchronize(0), "Failed to synchronize");
 #else
     memset(buffer[0], 0xbb, buf_size);
     memset(buffer[1], 0xbb, buf_size / 3);
@@ -179,6 +182,7 @@ main() {
 #ifdef USE_VRAM
     checkCudaError(cudaMemcpy(chk_buffer, buffer[0], buf_size, cudaMemcpyDeviceToHost),
                    "Failed to memcpy");
+    checkCudaError(cudaStreamSynchronize(0), "Failed to synchronize");
 #else
     memcpy(chk_buffer, buffer[0], buf_size);
 #endif
