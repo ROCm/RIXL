@@ -37,7 +37,7 @@ utils_sources = [
 utils_deps = [
   cuda_dep,
   openmp_dep,
-  cxxopts_dep,
+  gflags_dep,
   tomlplusplus_dep,
   dependency('dl', required: true)
 ]

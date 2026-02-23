@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 #include <optional>
+
 #include <cxxopts.hpp>
 
 // RIXL hack: compiling with g++ generates an error due to the way __noinline__
@@ -158,6 +159,7 @@ public:
     static std::string op_type;
     static bool check_consistency;
     static size_t total_buffer_size;
+    static bool recreate_xfer;
     static int num_initiator_dev;
     static int num_target_dev;
     static size_t start_block_size;
@@ -178,6 +180,8 @@ public:
     static bool enable_vmm;
     static int num_files;
     static std::string posix_api_type;
+    static int posix_ios_pool_size;
+    static int posix_kernel_queue_size;
     static bool storage_enable_direct;
     static int gds_batch_pool_size;
     static int gds_batch_limit;
@@ -224,12 +228,7 @@ public:
 
 protected:
     static int
-    loadParams(cxxopts::ParseResult &results);
-    template<class T>
-    static T
-    getParamValue(const std::unique_ptr<toml::table> &tbl,
-                  const cxxopts::ParseResult &result,
-                  const std::string_view name);
+    loadParams(void);
 };
 
 // Shared GUSLI device config used by utils and nixl_worker
@@ -378,8 +377,12 @@ public:
     static bool
     rmObjS3(const std::string &name);
 
-    static void
+    static bool
     checkConsistency(std::vector<std::vector<xferBenchIOV>> &desc_lists);
+    static bool
+    validateTransfer(bool is_initiator,
+                     std::vector<std::vector<xferBenchIOV>> &local_lists,
+                     std::vector<std::vector<xferBenchIOV>> &remote_lists);
     static void
     printStatsHeader();
     static void
