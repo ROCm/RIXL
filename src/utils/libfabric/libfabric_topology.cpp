@@ -669,26 +669,28 @@ nixlLibfabricTopology::isAmdAccel(hwloc_obj_t obj) const {
     if (obj->attr->pcidev.vendor_id != 0x1002) {
         return false;
     }
-    // AMD MI300x/MI355/MI455 device IDs
-    // MI300X: 0x74a0-0x74af range
-    // MI355/MI455: Will be added when device IDs are known
+    // AMD Instinct MI300/MI355 series device IDs
+    // Sources:
+    // - https://github.com/GPUOpen-Tools/device_info/blob/master/DeviceInfo.cpp
+    // - https://github.com/openbsd/src/blob/master/sys/dev/pci/drm/amd/amdgpu/amdgpu_devlist.h
+    // - https://github.com/ROCm/k8s-device-plugin/issues/112
+    // - https://github.com/ROCm/ROCm/issues/5891
+    // Architecture: CDNA3 (gfx942) and CDNA4 (gfx950)
     static const uint16_t AMD_GPU_DEVICE_IDS[] = {
-        0x74a0, // MI300X
-        0x74a1, // MI300X variant
-        0x74a2, // MI300X variant
-        0x74a3, // MI300X variant
-        0x74a4, // MI300X variant
-        0x74a5, // MI300X variant
-        0x74a6, // MI300X variant
-        0x74a7, // MI300X variant
-        0x74a8, // MI300X variant
-        0x74a9, // MI300X variant
-        0x74aa, // MI300X variant
-        0x74ab, // MI300X variant
-        0x74ac, // MI300X variant
-        0x74ad, // MI300X variant
-        0x74ae, // MI300X variant
-        0x74af, // MI300X variant
+        // MI300 Series (CDNA3 - gfx942)
+        0x74a0, // MI300A APU
+        0x74a1, // MI300X dGPU (most common)
+        0x74a2, // MI308X
+        0x74a5, // MI325X
+        0x74a9, // MI300XHF
+        0x74b5, // MI300X VF (Virtual Function)
+
+        // MI355 Series (CDNA4 - gfx950)
+        0x75a0, // MI355X
+        0x75a1, // MI355X variant
+        0x75a3, // MI355X variant (Chip ID 30115)
+
+        // Note: MI455X (CDNA5) device IDs not yet available (H2 2026 release)
     };
 
     uint16_t device_id = obj->attr->pcidev.device_id;
