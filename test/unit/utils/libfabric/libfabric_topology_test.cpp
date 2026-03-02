@@ -21,7 +21,11 @@
 #include "common/nixl_log.h"
 
 #ifdef CUDA_FOUND
+#ifdef __HIP_PLATFORM_AMD__
+#include <hip/hip_runtime.h>
+#else
 #include <cuda_runtime.h>
+#endif
 #endif
 
 int
@@ -47,7 +51,7 @@ main() {
 #ifdef CUDA_FOUND
                 // Get PCI bus ID for this GPU
                 cudaDeviceProp prop;
-                cudaGetDeviceProperties(&prop, gpu_id);
+                (void)cudaGetDeviceProperties(&prop, gpu_id);
 
                 char pci_bus_id[32];
                 snprintf(pci_bus_id,

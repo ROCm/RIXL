@@ -29,7 +29,11 @@
 #include <rdma/fi_domain.h>
 
 #ifdef HAVE_CUDA
+#ifdef __HIP_PLATFORM_AMD__
+#include <hip/hip_runtime.h>
+#else
 #include <cuda_runtime.h>
+#endif
 #endif
 
 nixlLibfabricTopology::nixlLibfabricTopology()
@@ -348,12 +352,11 @@ nixlLibfabricTopology::discoverAccelWithHwloc() {
             uint16_t device_id = pci_obj->attr->pcidev.device_id;
             uint16_t class_id = pci_obj->attr->pcidev.class_id;
 
-            const char *vendor_name = is_nvidia_accel ? "NVIDIA" :
-                                      is_amd_accel ? "AMD" : "NEURON";
+            const char *vendor_name = is_nvidia_accel ? "NVIDIA" : is_amd_accel ? "AMD" : "NEURON";
 
             NIXL_TRACE << "Found " << vendor_name << " accelerator: " << pcie_addr
-                       << " (vendor=" << std::hex << vendor_id
-                       << ", device=" << device_id << ", class=" << class_id << std::dec << ")";
+                       << " (vendor=" << std::hex << vendor_id << ", device=" << device_id
+                       << ", class=" << class_id << std::dec << ")";
 
             if (is_nvidia_accel) {
                 num_nvidia_accel++;
@@ -365,8 +368,7 @@ nixlLibfabricTopology::discoverAccelWithHwloc() {
         }
     }
 
-    NIXL_TRACE << "Discovered " << num_nvidia_accel << " NVIDIA, "
-               << num_amd_accel << " AMD, and "
+    NIXL_TRACE << "Discovered " << num_nvidia_accel << " NVIDIA, " << num_amd_accel << " AMD, and "
                << num_aws_accel << " Neuron accelerators via hwloc";
 
     // If we found more than 8 NVIDIA accelerators on P5en, investigate further
@@ -696,9 +698,8 @@ nixlLibfabricTopology::isAmdAccel(hwloc_obj_t obj) const {
     uint16_t device_id = obj->attr->pcidev.device_id;
 
     // Check if it's in the known device ID list
-    if (std::find(std::begin(AMD_GPU_DEVICE_IDS),
-                  std::end(AMD_GPU_DEVICE_IDS),
-                  device_id) != std::end(AMD_GPU_DEVICE_IDS)) {
+    if (std::find(std::begin(AMD_GPU_DEVICE_IDS), std::end(AMD_GPU_DEVICE_IDS), device_id) !=
+        std::end(AMD_GPU_DEVICE_IDS)) {
         return true;
     }
 
