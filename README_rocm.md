@@ -6,7 +6,7 @@ The original code can be found at https://github.com/ai-dynamo/nixl.
 ## Prerequisites for source build
 ### Ubuntu:
 ```bash
-sudo apt install build-essential cmake pkg-config libcxxopts-dev libcpprest-dev
+sudo apt install build-essential cmake pkg-config libcxxopts-dev
 sudo apt install libaio-dev liburing-dev
 
 pip3 install meson==0.64.0
@@ -78,8 +78,8 @@ Only the UCX backend is support with ROCm in nixlbench as of today. The equivale
 ```bash
 cd benchmark/nixlbench
 
-#The following line is temporarily required to circumvent a ROCm header file
-#incompatibility issue.
+# The following line is temporarily required to circumvent a ROCm header file
+# incompatibility issue.
 export CXXFLAGS="-Wno-error"
 
 meson setup build                       \
