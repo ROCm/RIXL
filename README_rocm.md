@@ -6,7 +6,7 @@ The original code can be found at https://github.com/ai-dynamo/nixl.
 ## Prerequisites for source build
 ### Ubuntu:
 ```bash
-sudo apt install build-essential cmake pkg-config
+sudo apt install build-essential cmake pkg-config libcxxopts-dev
 sudo apt install libaio-dev liburing-dev
 
 pip3 install meson==0.64.0
@@ -37,7 +37,7 @@ make -j
 RIXL can use ETCD for metadata distribution and coordination between nodes in distributed environments. To use ETCD with RIXL:
 #### ETCD Server and Client
 ```
-sudo apt install etcd etcd-server etcd-client
+sudo apt install etcd-server etcd-client
 ```
 
 #### ETCD CPP API
@@ -77,6 +77,11 @@ Only the UCX backend is support with ROCm in nixlbench as of today. The equivale
 ### Build & install
 ```bash
 cd benchmark/nixlbench
+
+# The following line is temporarily required to circumvent a ROCm header file
+# incompatibility issue.
+export CXXFLAGS="-Wno-error"
+
 meson setup build                       \
     -Dnixl_path=${_rixl_install_dir}    \
     -Drocm_path=/opt/rocm               \
