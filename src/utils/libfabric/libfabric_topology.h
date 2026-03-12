@@ -44,7 +44,7 @@ private:
     // System information
     int num_aws_accel; // AWS Trainium accelerators
     int num_nvidia_accel; // NVIDIA GPU accelerators
-    int num_amd_accel; // AMD GPU accelerators (MI300x, MI355, MI455)
+    int num_amd_accel; // AMD GPU accelerators
     int num_numa_nodes;
     int num_devices;
 

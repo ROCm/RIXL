@@ -76,6 +76,110 @@ nrtQueryAddr(const void *va, std::string *efa_bdf) {
     return -1;
 }
 
+// ROCr (AMD GPU) runtime library loading
+void *
+dlopen_libhsa() {
+    // Try libhsa-runtime64.so first
+    static void *handle = dlopen("libhsa-runtime64.so.1", RTLD_NOW | RTLD_LAZY);
+    if (handle) {
+        return handle;
+    }
+    // Fallback to versioned library
+    handle = dlopen("libhsa-runtime64.so", RTLD_NOW | RTLD_LAZY);
+    return handle;
+}
+
+void *
+dlopen_libhip() {
+    // Try libamdhip64.so (HIP Runtime) as alternative
+    static void *handle = dlopen("libamdhip64.so.6", RTLD_NOW | RTLD_LAZY);
+    if (handle) {
+        return handle;
+    }
+    // Fallback to unversioned library
+    handle = dlopen("libamdhip64.so", RTLD_NOW | RTLD_LAZY);
+    return handle;
+}
+
+template<class Fn>
+Fn *
+_load_hsa_symbol(const char *fn_name, Fn *) {
+    void *hsa_handle = dlopen_libhsa();
+    if (hsa_handle) {
+        return reinterpret_cast<Fn *>(dlsym(hsa_handle, fn_name));
+    }
+    return nullptr;
+}
+
+template<class Fn>
+Fn *
+_load_hip_symbol(const char *fn_name, Fn *) {
+    void *hip_handle = dlopen_libhip();
+    if (hip_handle) {
+        return reinterpret_cast<Fn *>(dlsym(hip_handle, fn_name));
+    }
+    return nullptr;
+}
+
+#define LOAD_HSA_SYMBOL(sym) _load_hsa_symbol(#sym, &sym)
+#define LOAD_HIP_SYMBOL(sym) _load_hip_symbol(#sym, &sym)
+
+// HIP API function signatures for dynamic loading
+using hipGetDeviceProperties_fn = int (*)(void *prop, int device);
+using hipPointerGetAttribute_fn = int (*)(void *data, int attribute, const void *ptr);
+using hipDeviceGetPCIBusId_fn = int (*)(char *pciBusId, int len, int device);
+
+// ROCr (AMD GPU) memory address query using HIP APIs
+int
+rocrQueryAddr(const void *va, std::string *efa_bdf) {
+    // Strategy: Use HIP runtime to query PCI bus ID from memory address
+    // HIP API: hipPointerGetAttribute -> get device ID -> hipDeviceGetPCIBusId
+
+    // Load HIP symbols dynamically
+    hipPointerGetAttribute_fn hipPointerGetAttribute = nullptr;
+    hipDeviceGetPCIBusId_fn hipDeviceGetPCIBusId = nullptr;
+
+    void *hip_handle = dlopen_libhip();
+    if (hip_handle) {
+        hipPointerGetAttribute = reinterpret_cast<hipPointerGetAttribute_fn>(
+            dlsym(hip_handle, "hipPointerGetAttribute"));
+        hipDeviceGetPCIBusId = reinterpret_cast<hipDeviceGetPCIBusId_fn>(
+            dlsym(hip_handle, "hipDeviceGetPCIBusId"));
+    }
+
+    if (!hipPointerGetAttribute || !hipDeviceGetPCIBusId) {
+        // HIP library not available - this is acceptable, fall back to all rails
+        NIXL_TRACE << "HIP runtime library not available - using all rails for AMD GPU memory";
+        return -1;
+    }
+
+    // Query device ID from memory pointer
+    int device_id = -1;
+    // hipPointerAttribute_t::device = 2
+    constexpr int hipPointerAttributeDevice = 2;
+    int ret = hipPointerGetAttribute(&device_id, hipPointerAttributeDevice, va);
+    if (ret != 0 || device_id < 0) {
+        NIXL_TRACE << "Failed to query device ID from memory address " << va
+                   << " - using all rails";
+        return -1;
+    }
+
+    // Query PCI bus ID from device ID
+    char pci_bus_id[64];
+    ret = hipDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), device_id);
+    if (ret != 0) {
+        NIXL_TRACE << "Failed to query PCI bus ID for AMD GPU device " << device_id
+                   << " - using all rails";
+        return -1;
+    }
+
+    // Format PCI bus ID (HIP returns format like "0000:59:00.0")
+    efa_bdf->assign(pci_bus_id);
+    NIXL_DEBUG << "ROCr query: memory " << va << " -> device " << device_id
+               << " -> PCI " << *efa_bdf;
+    return 0;
+}
+
 } // namespace
 
 #ifdef HAVE_CUDA
@@ -301,6 +405,7 @@ nixlLibfabricEngine::nixlLibfabricEngine(const nixlBackendInitParams *init_param
 
     NIXL_INFO << "System runtime: "
               << (runtime_ == FI_HMEM_CUDA       ? "CUDA" :
+                      runtime_ == FI_HMEM_ROCR   ? "ROCr" :
                       runtime_ == FI_HMEM_NEURON ? "NEURON" :
                                                    "SYSTEM");
 
@@ -727,8 +832,8 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
     // Use system runtime type to determine device-specific operations
     if (nixl_mem == VRAM_SEG) {
 #ifdef HAVE_CUDA
-        if (runtime_ == FI_HMEM_CUDA) {
-            // CUDA-specific address query
+        if (runtime_ == FI_HMEM_CUDA || runtime_ == FI_HMEM_ROCR) {
+            // GPU-specific address query (CUDA or ROCr)
             // For multi-GPU support, skip CUDA address workaround
             if (cuda_addr_wa_) {
                 bool need_restart;
@@ -753,17 +858,28 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
             }
 
             // Query PCI bus ID from memory address (AFTER setting context)
-            bool is_dev;
-            CUdevice dev;
-            CUcontext ctx;
+            if (runtime_ == FI_HMEM_CUDA) {
+                bool is_dev;
+                CUdevice dev;
+                CUcontext ctx;
 
-            int ret = cudaQueryAddr((void *)mem.addr, is_dev, dev, ctx, pci_bus_id);
-            if (ret || !is_dev) {
-                NIXL_ERROR << "Failed to query device from memory " << (void *)mem.addr;
-                return NIXL_ERR_BACKEND;
+                int ret = cudaQueryAddr((void *)mem.addr, is_dev, dev, ctx, pci_bus_id);
+                if (ret || !is_dev) {
+                    NIXL_ERROR << "Failed to query device from memory " << (void *)mem.addr;
+                    return NIXL_ERR_BACKEND;
+                }
+
+                NIXL_DEBUG << "Queried PCI bus ID: " << pci_bus_id << " for GPU " << mem.devId;
+            } else if (runtime_ == FI_HMEM_ROCR) {
+                // AMD ROCr-specific address query
+                int ret = rocrQueryAddr((void *)mem.addr, &pci_bus_id);
+                if (ret) {
+                    NIXL_ERROR << "Failed to query device from memory " << (void *)mem.addr;
+                    return NIXL_ERR_BACKEND;
+                }
+
+                NIXL_DEBUG << "Queried PCI bus ID: " << pci_bus_id << " for GPU " << mem.devId;
             }
-
-            NIXL_DEBUG << "Queried PCI bus ID: " << pci_bus_id << " for GPU " << mem.devId;
         }
 #endif
         if (runtime_ == FI_HMEM_NEURON) {

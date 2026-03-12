@@ -104,10 +104,20 @@ nixlLibfabricTopology::discoverTopology() {
         NIXL_INFO << "Using simplified topology for " << provider_name
                   << " devices (no topology mapping needed)";
 
-        // Set basic values without hwloc discovery
-        num_aws_accel = 0; // TCP doesn't need accelerator topology
-        num_numa_nodes = 1; // Simple fallback
+        // Still discover GPUs even in simplified mode for GPU memory registration
+        status = initHwlocTopology();
+        if (status == NIXL_SUCCESS) {
+            status = discoverAccelWithHwloc();
+            if (status != NIXL_SUCCESS) {
+                NIXL_WARN << "GPU discovery failed in simplified topology mode";
+                // Not a fatal error - continue without GPUs
+            }
+            cleanupHwlocTopology();
+        } else {
+            NIXL_WARN << "hwloc initialization failed - no GPU detection available";
+        }
 
+        num_numa_nodes = 1; // Simple fallback
         // For TCP/sockets devices, no accelerator-mapping required.
         NIXL_INFO << "TCP devices available globally - no accelerator-specific mapping required";
     }
@@ -671,42 +681,11 @@ nixlLibfabricTopology::isAmdAccel(hwloc_obj_t obj) const {
     if (obj->attr->pcidev.vendor_id != 0x1002) {
         return false;
     }
-    // AMD Instinct MI300/MI355 series device IDs
-    // Sources:
-    // - https://github.com/GPUOpen-Tools/device_info/blob/master/DeviceInfo.cpp
-    // - https://github.com/openbsd/src/blob/master/sys/dev/pci/drm/amd/amdgpu/amdgpu_devlist.h
-    // - https://github.com/ROCm/k8s-device-plugin/issues/112
-    // - https://github.com/ROCm/ROCm/issues/5891
-    // Architecture: CDNA3 (gfx942) and CDNA4 (gfx950)
-    static const uint16_t AMD_GPU_DEVICE_IDS[] = {
-        // MI300 Series (CDNA3 - gfx942)
-        0x74a0, // MI300A APU
-        0x74a1, // MI300X dGPU (most common)
-        0x74a2, // MI308X
-        0x74a5, // MI325X
-        0x74a9, // MI300XHF
-        0x74b5, // MI300X VF (Virtual Function)
-
-        // MI355 Series (CDNA4 - gfx950)
-        0x75a0, // MI355X
-        0x75a1, // MI355X variant
-        0x75a3, // MI355X variant (Chip ID 30115)
-
-        // Note: MI455X (CDNA5) device IDs not yet available (H2 2026 release)
-    };
-
-    uint16_t device_id = obj->attr->pcidev.device_id;
-
-    // Check if it's in the known device ID list
-    if (std::find(std::begin(AMD_GPU_DEVICE_IDS), std::end(AMD_GPU_DEVICE_IDS), device_id) !=
-        std::end(AMD_GPU_DEVICE_IDS)) {
-        return true;
-    }
-
-    // Fallback: Check PCI class ID for display controller (GPU)
-    // Class 0x300-0x3ff for display controllers (similar to NVIDIA check)
+    // Only count devices with GPU class (0x300-0x3ff for display controllers)
+    // Class 0x302 is 3D controller (GPU), 0x680 is other devices (network, etc.)
+    // MI300X uses class 0x1200 (Processing accelerators), consumer GPUs use 0x300-0x3ff
     uint16_t class_id = obj->attr->pcidev.class_id;
-    return (class_id >= 0x300 && class_id < 0x400);
+    return (class_id >= 0x300 && class_id < 0x400) || (class_id == 0x1200);
 }
 
 bool

@@ -43,7 +43,7 @@ main() {
         topology.printTopologyInfo();
 
         // Test GPU-specific queries only if GPUs are detected
-        int num_gpus = topology.getNumNvidiaAccel();
+        int num_gpus = topology.getNumNvidiaAccel() + topology.getNumAmdAccel();
         if (num_gpus > 0) {
             NIXL_INFO << "3. Testing GPU-specific queries (detected " << num_gpus << " GPUs)...";
             int test_gpus = std::min(num_gpus, 3); // Test up to 3 GPUs or all available
