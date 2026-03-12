@@ -43,23 +43,33 @@ main() {
         topology.printTopologyInfo();
 
         // Test GPU-specific queries only if GPUs are detected
-        int num_gpus = topology.getNumNvidiaAccel();
+        int num_gpus = topology.getNumNvidiaAccel() + topology.getNumAmdAccel();
         if (num_gpus > 0) {
             NIXL_INFO << "3. Testing GPU-specific queries (detected " << num_gpus << " GPUs)...";
             int test_gpus = std::min(num_gpus, 3); // Test up to 3 GPUs or all available
             for (int gpu_id = 0; gpu_id < test_gpus; ++gpu_id) {
 #ifdef CUDA_FOUND
                 // Get PCI bus ID for this GPU
+                char pci_bus_id[32];
+#ifdef __HIP_PLATFORM_AMD__
+                // For AMD GPUs, use hipDeviceGetPCIBusId which returns formatted string
+                hipError_t err = hipDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), gpu_id);
+                if (err != hipSuccess) {
+                    NIXL_WARN << "Failed to get PCI bus ID for GPU " << gpu_id;
+                    continue;
+                }
+#else
+                // For NVIDIA GPUs, get device properties and format PCI bus ID
                 cudaDeviceProp prop;
                 (void)cudaGetDeviceProperties(&prop, gpu_id);
 
-                char pci_bus_id[32];
                 snprintf(pci_bus_id,
                          sizeof(pci_bus_id),
                          "%04x:%02x:%02x.0",
                          prop.pciDomainID,
                          prop.pciBusID,
                          prop.pciDeviceID);
+#endif
 
                 auto gpu_devices = topology.getEfaDevicesForPci(pci_bus_id);
 
