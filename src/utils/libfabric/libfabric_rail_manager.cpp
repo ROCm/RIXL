@@ -53,8 +53,7 @@ nixlLibfabricRailManager::nixlLibfabricRailManager(size_t striping_threshold)
                   << " NVIDIA GPU(s)";
     } else if (topology->getNumAmdAccel() > 0) {
         runtime_ = FI_HMEM_ROCR;
-        NIXL_INFO << "System runtime: ROCr for " << topology->getNumAmdAccel()
-                  << " AMD GPU(s)";
+        NIXL_INFO << "System runtime: ROCr for " << topology->getNumAmdAccel() << " AMD GPU(s)";
     } else if (topology->getNumAwsAccel() > 0) {
         runtime_ = FI_HMEM_NEURON;
         NIXL_INFO << "System runtime: NEURON for " << topology->getNumAwsAccel()

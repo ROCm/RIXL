@@ -727,7 +727,7 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
     // Use system runtime type to determine device-specific operations
     if (nixl_mem == VRAM_SEG) {
 #ifdef HAVE_CUDA
-        if (runtime_ == FI_HMEM_CUDA) {
+        if (runtime_ == FI_HMEM_CUDA || runtime_ == FI_HMEM_ROCR) {
             // CUDA-specific address query
             // For multi-GPU support, skip CUDA address workaround
             if (cuda_addr_wa_) {
