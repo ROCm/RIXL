@@ -301,6 +301,7 @@ nixlLibfabricEngine::nixlLibfabricEngine(const nixlBackendInitParams *init_param
 
     NIXL_INFO << "System runtime: "
               << (runtime_ == FI_HMEM_CUDA       ? "CUDA" :
+                      runtime_ == FI_HMEM_ROCR   ? "ROCr" :
                       runtime_ == FI_HMEM_NEURON ? "NEURON" :
                                                    "SYSTEM");
 

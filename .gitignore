@@ -21,3 +21,6 @@ cufile.log
 
 # Asio
 subprojects/asio-*
+
+build
+subprojects/.wraplock
