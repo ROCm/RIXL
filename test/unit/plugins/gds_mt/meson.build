@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,6 @@ hipify_src = generator(hipify_cmd,
 nixl_gds_hip_src = hipify_src.process('nixl_gds_mt_test.cpp', extra_args: '-o')
 
 nixl_gds_mt_app = executable('nixl_gds_mt_test', nixl_gds_hip_src,
-                              dependencies: [nixl_dep, nixl_infra, cuda_dep],
+                              dependencies: [nixl_dep, nixl_infra, cuda_dep, nixl_common_dep],
                               include_directories: [nixl_inc_dirs, utils_inc_dirs],
                               install: true)
