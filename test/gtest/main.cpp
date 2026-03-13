@@ -99,7 +99,7 @@ int RunTests(int argc, char **argv) {
     if (const size_t problems = LogProblemCounter::getProblemCount(); problems > 0) {
         std::cerr << "ATTENTION: Unexpected NIXL warning(s) and/or error(s) detected!" << std::endl;
         std::cerr << "ATTENTION: Problem count is " << problems << std::endl;
-        return 42;
+        return result;
     }
     return result;
 }
