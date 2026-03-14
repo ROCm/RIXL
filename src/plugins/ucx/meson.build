@@ -24,7 +24,6 @@ ucx_hip_src = hipify_src.process('ucx_backend.cpp', extra_args: '-o')
 ucx_backend_includes = include_directories('.')
 
 ucx_backend_sources = ['config.cpp',
-                       'gpu_xfer_req_h.cpp',
                        'mem_list.cpp',
                        'rkey.cpp',
                        ucx_hip_src,
