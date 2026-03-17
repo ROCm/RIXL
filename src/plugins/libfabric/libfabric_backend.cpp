@@ -312,7 +312,7 @@ nixlLibfabricEngine::nixlLibfabricEngine(const nixlBackendInitParams *init_param
                                                    "SYSTEM");
 
 #ifdef HAVE_CUDA
-    if (runtime_ == FI_HMEM_CUDA) {
+    if (runtime_ == FI_HMEM_CUDA || runtime_ == FI_HMEM_ROCR) {
         // Initialize CUDA context management
         vramInitCtx();
         // CUDA address workaround
@@ -670,7 +670,7 @@ nixlLibfabricEngine::getSupportedMems() const {
     nixl_mem_list_t mems;
     mems.push_back(DRAM_SEG);
 #ifdef HAVE_CUDA
-    if (runtime_ == FI_HMEM_CUDA) {
+    if (runtime_ == FI_HMEM_CUDA || runtime_ == FI_HMEM_ROCR) {
         NIXL_DEBUG << "CUDA runtime detected, adding VRAM support";
         mems.push_back(VRAM_SEG);
     } else {
@@ -759,7 +759,7 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
 
 #ifdef HAVE_CUDA
     // Set CUDA context before libfabric operations for VRAM
-    if (nixl_mem == VRAM_SEG && runtime_ == FI_HMEM_CUDA) {
+    if (nixl_mem == VRAM_SEG && (runtime_ == FI_HMEM_CUDA || runtime_ == FI_HMEM_ROCR)) {
         vramApplyCtx();
     }
 #endif
