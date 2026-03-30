@@ -14,13 +14,13 @@
 # limitations under the License.
 
 [build-system]
-requires = ["meson-python", "pybind11", "patchelf", "pyyaml", "types-PyYAML", "pytest", "build", "setuptools>=80.9.0"]
+requires = ["meson-python", "pybind11", "patchelf", "pyyaml", "types-PyYAML", "pytest", "build", "setuptools>=80.9.0", "torch"]
 build-backend = "mesonpy"
 
 [project]
 
 name = 'rixl'
-version = '1.0.0'
+version = '1.0.1'
 description = 'RIXL Python API'
 readme = 'README_rocm.md'
 
