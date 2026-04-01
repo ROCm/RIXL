@@ -89,7 +89,6 @@ set -x
 # Build the wheel
 TMP_DIR=$(mktemp -d)
 
-<<<<<<< HEAD
 if [[ -d "${ROCM_DIR}" ]]; then
     PKG_NAME="rixl"
     ./contrib/tomlutil.py --wheel-name ${PKG_NAME} pyproject.toml
@@ -122,37 +121,20 @@ else
     PKG_NAME="nixl-cu${CUDA_MAJOR}"
 
     ./contrib/tomlutil.py --wheel-name $PKG_NAME pyproject.toml
-    uv build --wheel --out-dir $TMP_DIR --python $PYTHON_VERSION
+    if [ "$BUILD_NIXL_EP" = "true" ]; then
+        uv build --wheel --out-dir $TMP_DIR --python $PYTHON_VERSION \
+           -Csetup-args=-Dbuild_nixl_ep=true \
+           -Csetup-args=-Dbuild_examples=true
+    else
+        uv build --wheel --out-dir $TMP_DIR --python $PYTHON_VERSION
+    fi
 
     # Bundle libraries
     mkdir $TMP_DIR/dist
-    auditwheel repair --exclude 'libcuda*' --exclude 'libcufile*' --exclude 'libssl*' --exclude 'libcrypto*' --exclude 'libefa*' --exclude 'libhwloc*' --exclude 'libfabric*' $TMP_DIR/nixl*.whl --plat $WHL_PLATFORM --wheel-dir $TMP_DIR/dist
+    auditwheel repair --exclude 'libcuda*' --exclude 'libcufile*' --exclude 'libssl*' --exclude 'libcrypto*' --exclude 'libefa*' --exclude 'libhwloc*' --exclude 'libfabric*' --exclude 'libtorch*' --exclude 'libc10*' --exclude 'libdoca*' $TMP_DIR/nixl*.whl --plat $WHL_PLATFORM --wheel-dir $TMP_DIR/dist
     ./contrib/wheel_add_ucx_plugins.py --ucx-plugins-dir $UCX_PLUGINS_DIR --nixl-plugins-dir $NIXL_PLUGINS_DIR $TMP_DIR/dist/*.whl
     cp $TMP_DIR/dist/*.whl $OUTPUT_DIR
 fi
-=======
-CUDA_MAJOR=$(nvcc --version | grep -Eo 'release [0-9]+\.[0-9]+' | cut -d' ' -f2 | cut -d'.' -f1)
-# Must be 12 or 13
-if [ "$CUDA_MAJOR" -ne 12 ] && [ "$CUDA_MAJOR" -ne 13 ]; then
-    echo "Invalid CUDA_MAJOR: '$CUDA_MAJOR'"
-    exit 1
-fi
-PKG_NAME="nixl-cu${CUDA_MAJOR}"
-./contrib/tomlutil.py --wheel-name $PKG_NAME pyproject.toml
-if [ "$BUILD_NIXL_EP" = "true" ]; then
-    uv build --wheel --out-dir $TMP_DIR --python $PYTHON_VERSION \
-        -Csetup-args=-Dbuild_nixl_ep=true \
-        -Csetup-args=-Dbuild_examples=true
-else
-    uv build --wheel --out-dir $TMP_DIR --python $PYTHON_VERSION
-fi
-
-# Bundle libraries
-mkdir $TMP_DIR/dist
-auditwheel repair --exclude 'libcuda*' --exclude 'libcufile*' --exclude 'libssl*' --exclude 'libcrypto*' --exclude 'libefa*' --exclude 'libhwloc*' --exclude 'libfabric*' --exclude 'libtorch*' --exclude 'libc10*' --exclude 'libdoca*' $TMP_DIR/nixl*.whl --plat $WHL_PLATFORM --wheel-dir $TMP_DIR/dist
-./contrib/wheel_add_ucx_plugins.py --ucx-plugins-dir $UCX_PLUGINS_DIR --nixl-plugins-dir $NIXL_PLUGINS_DIR $TMP_DIR/dist/*.whl
-cp $TMP_DIR/dist/*.whl $OUTPUT_DIR
->>>>>>> nixl/main
 
 # Clean up
 rm -rf "$TMP_DIR"
