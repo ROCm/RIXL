@@ -1239,11 +1239,9 @@ nixl_status_t nixlUcxEngine::registerMem (const nixlBlobDesc &mem,
     if (ret) {
         return NIXL_ERR_BACKEND;
     }
-    priv->rkeyStr = uc->packRkey(priv->mem);
-
-    if (priv->rkeyStr.empty()) {
-        return NIXL_ERR_BACKEND;
-    }
+    // Defer packRkey to getPublicData/loadLocalMD.  Packing eagerly here
+    // triggers hsa_amd_ipc_memory_create (via ucp_rkey_pack) which
+    // permanently pins GPU memory on ROCm with no release API.
     out = priv.release();
     return NIXL_SUCCESS;
 }
@@ -1258,7 +1256,13 @@ nixl_status_t nixlUcxEngine::deregisterMem (nixlBackendMD* meta)
 
 nixl_status_t nixlUcxEngine::getPublicData (const nixlBackendMD* meta,
                                             std::string &str) const {
-    const nixlUcxPrivateMetadata *priv = (nixlUcxPrivateMetadata*) meta;
+    const nixlUcxPrivateMetadata *priv = (const nixlUcxPrivateMetadata *)meta;
+    if (priv->rkeyStr.empty()) {
+        priv->rkeyStr = uc->packRkey(priv->mem);
+        if (priv->rkeyStr.empty()) {
+            return NIXL_ERR_BACKEND;
+        }
+    }
     str = priv->get();
     return NIXL_SUCCESS;
 }
@@ -1303,6 +1307,12 @@ nixlUcxEngine::loadLocalMD (nixlBackendMD* input,
                             nixlBackendMD* &output)
 {
     nixlUcxPrivateMetadata* input_md = (nixlUcxPrivateMetadata*) input;
+    if (input_md->rkeyStr.empty()) {
+        input_md->rkeyStr = uc->packRkey(input_md->mem);
+        if (input_md->rkeyStr.empty()) {
+            return NIXL_ERR_BACKEND;
+        }
+    }
     return internalMDHelper(input_md->rkeyStr, localAgent, output);
 }
 

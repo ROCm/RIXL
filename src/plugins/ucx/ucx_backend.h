@@ -58,8 +58,8 @@ using ucx_connection_ptr_t = std::shared_ptr<nixlUcxConnection>;
 // A private metadata has to implement get, and has all the metadata
 class nixlUcxPrivateMetadata : public nixlBackendMD {
     private:
-        nixlUcxMem mem;
-        nixl_blob_t rkeyStr;
+        mutable nixlUcxMem mem;
+        mutable nixl_blob_t rkeyStr;
 
     public:
         nixlUcxPrivateMetadata() : nixlBackendMD(true) {
