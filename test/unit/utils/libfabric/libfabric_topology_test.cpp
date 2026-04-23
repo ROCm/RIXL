@@ -20,6 +20,8 @@
 #include "libfabric/libfabric_common.h"
 #include "libfabric/libfabric_rail_manager.h"
 #include "common/nixl_log.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 
 #ifdef CUDA_FOUND
 #ifdef __HIP_PLATFORM_AMD__
@@ -186,7 +188,44 @@ static TopologyInfo topologies[] = {
      .numa_capacity = 32, // topmost switch on g6 report link speed 32 GB/s
      .numa_rail_count = 1, // should default to all rails, which is 1
      .test_scenarios = {{false, 0}, {true, 50}, {true, 100}, {true, 200}},
-     .rail_partition = {{{0}}, {{0}}}} // pretending single switch in each node, both using rail 0
+     .rail_partition = {{{0}}, {{0}}}}, // pretending single switch in each node, both using rail 0
+
+    //
+    // AMD MI300X (verbs;ofi_rxd provider - RoCE)
+    //
+
+    // MI300X with 8x Broadcom bnxt_re (400Gbps) + 2x Mellanox ConnectX-6 Dx (100Gbps)
+    // 2 NUMA nodes: NUMA 0 has bnxt_re0-3 + mlx5_0-1, NUMA 1 has bnxt_re4-7
+    // Each bnxt_re NIC is behind its own PCIe switch with 63 GB/s upstream link
+    // bnxt_re1, mlx5_0, and mlx5_1 share a topmost PCIe switch (bus 0x20)
+    // Topmost switches per NUMA node: 4 (NUMA0: 0x00, 0x20, 0x40, 0x60;
+    //                                      NUMA1: 0x80, 0xa0, 0xc0, 0xe0)
+    // Rail assignment (from NicMap iteration order in rail manager):
+    //   0:bnxt_re5 1:bnxt_re7 2:bnxt_re3 3:bnxt_re6 4:bnxt_re4 5:bnxt_re2
+    //   6:mlx5_0 7:mlx5_1 8:bnxt_re1 9:bnxt_re0
+    // NOTE: 2000 Gbps (5-rail) scenario skipped because non-uniform NUMA device count
+    // (6 on NUMA0 vs 4 on NUMA1) breaks test validation's full_node_rail_count assumption
+    {.enable = true,
+     .instance_type = "mi300x",
+     .topo_file = "mi300x-topo.xml",
+    //  .provider = "verbs;ofi_rxd",
+     .numa_node_count = 2,
+     .nic_count = 10, // 8 bnxt_re + 2 mlx5
+     .nic_line_speed = 400, // dominant NIC speed (bnxt_re), mlx5 are 100Gbps
+     .nic_upstream_link_speed = 56, // average: (8*504 + 2*252)/10 = 453.6 Gbps / 8 = ~56 GB/s
+     .switch_count = 4, // 4 topmost PCIe switches per NUMA node
+     .numa_capacity = 252, // 2020 Gbps / 8 = ~252 GB/s per NUMA node
+     .numa_rail_count = 4, // 2020 Gbps / 453 Gbps avg upstream = ~4 rails per NUMA node
+     .test_scenarios = {{false, 0},
+                        {true, 400},
+                        {true, 800},
+                        {true, 1200},
+                        {true, 2400},
+                        {true, 2800},
+                        {true, 3200},
+                        {true, 4000}},
+     .rail_partition = {{{9}, {6, 7, 8}, {5}, {2}},   // NUMA 0: bus 0x00, 0x20, 0x40, 0x60
+                        {{4}, {0}, {3}, {1}}}}
 
     // end of list
 };
@@ -254,6 +293,16 @@ testNumaDramRailSelectionPolicy(const char *instance_type);
 
 int
 main(int argc, char *argv[]) {
+    // NIXL_LOG_LEVEL=TRACE didn't work without this, not sure why - maybe some
+    // static initialization order issue with absl logging
+    // or resulting log file size (~20MB log file generated with NIXL_LOG_LEVEL=TRACE)
+    const char *log_level = getenv("NIXL_LOG_LEVEL");
+    if (log_level && std::string(log_level) == "TRACE") {
+        absl::SetVLogLevel("*", 2);
+        absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    }
+    absl::InitializeLog();
+
     if (argc > 1) {
         // testing for NUMA-aware rail selection for DRAM_SEG
         // the only parameter is the instance type
@@ -348,6 +397,20 @@ isEfaDevice(hwloc_obj_t obj) {
         (obj->attr->pcidev.device_id & 0xfff0) == 0xefa0;
 }
 
+static bool
+isVerbsDevice(hwloc_obj_t obj) {
+    // Match RDMA-capable Ethernet devices that appear as OpenFabrics OS devices:
+    // - Mellanox/NVIDIA ConnectX (vendor 0x15b3) with Ethernet class (0x0200)
+    // - Broadcom bnxt_re (vendor 0x14e4) with Ethernet class (0x0200)
+    if (obj->attr->pcidev.vendor_id == 0x15b3 ||
+        obj->attr->pcidev.vendor_id == 0x14e4) {
+        return true;
+    }
+    // Also match native InfiniBand (class 0x0c06)
+    return obj->attr->pcidev.vendor_id == 0x15b3 &&
+        obj->attr->pcidev.class_id == 0x0c06;
+}
+
 // hwloc helper methods
 static std::string
 getPcieAddressFromHwlocPcidev(const hwloc_obj_attr_u::hwloc_pcidev_attr_s &pcidev) {
@@ -380,7 +443,7 @@ getNicData(NicData &nic, hwloc_obj_t pci_obj) {
 }
 
 static int
-getEfaDeviceNamesFromHwloc(NicMap &nic_map) {
+getNicDeviceNamesFromHwloc(NicMap &nic_map) {
     // when testing we load topologies form XML, so we cannot mix that with local machine info that
     // comes from libfabric's fi_getinfo() - instead we discover network devices from hwloc, but
     // that is also missing NIC card line speed that comes in multiples of 1000^3. currently this
@@ -423,7 +486,11 @@ getEfaDeviceNamesFromHwloc(NicMap &nic_map) {
         return 3;
     }
 
-    // get PCI device list, check if EFA, and build map
+    // get PCI device list, check if target device type, and build map
+
+    // It is bad approach to use instance_type for provider identification,
+    // but the PR goal is showcasing working topology.
+    bool use_verbs = (strcmp(curr_topology->instance_type, "mi300x") == 0);
     hwloc_obj_t os_obj = nullptr;
     while ((os_obj = hwloc_get_next_osdev(hwloc_topology, os_obj)) != nullptr) {
         if (os_obj->attr->osdev.type == HWLOC_OBJ_OSDEV_OPENFABRICS) {
@@ -433,7 +500,8 @@ getEfaDeviceNamesFromHwloc(NicMap &nic_map) {
                           << " parent is not a PCI device, skipping";
                 continue;
             }
-            if (isEfaDevice(pci_obj)) {
+            bool is_target = use_verbs ? isVerbsDevice(pci_obj) : isEfaDevice(pci_obj);
+            if (is_target) {
                 NicData &nic = nic_map[os_obj->name];
                 nic.name = os_obj->name;
                 getNicData(nic, pci_obj);
@@ -589,7 +657,7 @@ __wrap_fi_getinfo(uint32_t version,
 
         // load topology from XML file and feed result into fi_getinfo
         NicMap nic_map;
-        int res = getEfaDeviceNamesFromHwloc(nic_map);
+        int res = getNicDeviceNamesFromHwloc(nic_map);
         if (res != 0) {
             return res;
         }
@@ -603,11 +671,21 @@ __wrap_fi_getinfo(uint32_t version,
             }
 
             itr->domain_attr = malloc_zero<fi_domain_attr>();
-            itr->domain_attr->name = strdup(entry.second.name.c_str());
-
             itr->fabric_attr = malloc_zero<fi_fabric_attr>();
-            itr->fabric_attr->prov_name = strdup("efa");
-            itr->fabric_attr->name = strdup("efa");
+
+            // MI300X instance uses verbs;ofi_rxd provider, its domain names have a "-dgram" suffix
+            // It is bad approach to use instance_type for provider identification,
+            // but the PR goal is showcasing working topology.
+            if (strcmp(curr_topology->instance_type, "mi300x") == 0) {
+                std::string domain_name = entry.second.name + "-dgram";
+                itr->domain_attr->name = strdup(domain_name.c_str());
+                itr->fabric_attr->prov_name = strdup("verbs;ofi_rxd");
+                itr->fabric_attr->name = strdup("verbs;ofi_rxd");
+            } else {
+                itr->domain_attr->name = strdup(entry.second.name.c_str());
+                itr->fabric_attr->prov_name = strdup("efa");
+                itr->fabric_attr->name = strdup("efa");
+            }
 
             itr->ep_attr = malloc_zero<fi_ep_attr>();
             itr->ep_attr->type = FI_EP_RDM;

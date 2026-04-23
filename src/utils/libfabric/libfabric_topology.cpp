@@ -80,13 +80,13 @@ nixlLibfabricTopology::discoverTopology() {
     if (status != NIXL_SUCCESS) {
         return status;
     }
-    // For EFA devices, build PCIe to Libfabric device mapping and full topology
-    if (provider_name == "efa") {
+    // For EFA and verbs devices, build PCIe to Libfabric device mapping and full topology
+    if (provider_name == "efa" || provider_name == "verbs;ofi_rxd") {
         // Build PCIe to Libfabric device mapping
         status = buildPcieToLibfabricMapping();
         if (status != NIXL_SUCCESS) {
-            NIXL_ERROR << "Failed to build PCIe to Libfabric mapping - this is required for EFA "
-                          "topology discovery";
+            NIXL_ERROR << "Failed to build PCIe to Libfabric mapping - this is required for "
+                       << provider_name << " topology discovery";
             return status;
         }
         // Discover hardware topology using hwloc
@@ -99,7 +99,7 @@ nixlLibfabricTopology::discoverTopology() {
         if (num_nvidia_accel > 0 || num_amd_accel > 0) {
             status = buildAccelToEfaMapping();
             if (status != NIXL_SUCCESS) {
-                NIXL_ERROR << "Failed to build accelerator to EFA mapping";
+                NIXL_ERROR << "Failed to build accelerator to NIC mapping";
                 return status;
             }
         }
@@ -133,6 +133,8 @@ nixlLibfabricTopology::discoverProviderWithDevices() {
     // Set device type based on discovered provider
     if (provider_name == "efa") {
         NIXL_INFO << "Discovered " << num_devices << " EFA devices";
+    } else if (provider_name == "verbs;ofi_rxd") {
+        NIXL_INFO << "Discovered " << num_devices << " InfiniBand (verbs;ofi_rxd) devices";
     } else if (provider_name == "tcp" || provider_name == "sockets") {
         NIXL_INFO << "Discovered " << num_devices << " " << provider_name
                   << " devices (TCP fallback)";
@@ -455,25 +457,32 @@ nixlLibfabricTopology::discoverAccelWithHwloc() {
     return NIXL_SUCCESS;
 }
 
+// The naming of the method and some variables not aligned anymore with
+// the change to support verbs;ofi_rxd, but the logic is still valid
+// for both EFA and verbs devices since both are PCIe devices discovered via hwloc.
+// We can refactor the naming in a future cleanup if needed.
 nixl_status_t
 nixlLibfabricTopology::discoverEfaDevicesWithHwloc() {
-    // EFA devices are already discovered via libfabric
+    // Network devices are already discovered via libfabric
     // This method validates the hwloc discovery matches libfabric discovery
-    int hwloc_efa_count = 0;
+    int hwloc_nic_count = 0;
     hwloc_obj_t pci_obj = nullptr;
     while ((pci_obj = hwloc_get_next_pcidev(hwloc_topology, pci_obj)) != nullptr) {
-        if (isEfaDevice(pci_obj)) {
-            hwloc_efa_count++;
-            NIXL_TRACE << "Found EFA device via hwloc: " << getPcieAddressFromHwlocObj(pci_obj);
+        bool is_target_device = (provider_name == "verbs;ofi_rxd") ? isInfiniBandDevice(pci_obj)
+                                                                 : isEfaDevice(pci_obj);
+        if (is_target_device) {
+            hwloc_nic_count++;
+            NIXL_TRACE << "Found " << provider_name
+                       << " device via hwloc: " << getPcieAddressFromHwlocObj(pci_obj);
         }
     }
 
-    NIXL_TRACE << "hwloc found " << hwloc_efa_count << " EFA devices, libfabric found "
-               << num_devices;
+    NIXL_TRACE << "hwloc found " << hwloc_nic_count << " " << provider_name
+               << " devices, libfabric found " << num_devices;
 
-    if (hwloc_efa_count != num_devices) {
-        NIXL_DEBUG << "Mismatch between hwloc (" << hwloc_efa_count << ") and libfabric ("
-                   << num_devices << ") EFA device counts";
+    if (hwloc_nic_count != num_devices) {
+        NIXL_DEBUG << "Mismatch between hwloc (" << hwloc_nic_count << ") and libfabric ("
+                   << num_devices << ") " << provider_name << " device counts";
     }
 
     return NIXL_SUCCESS;
@@ -793,6 +802,20 @@ nixlLibfabricTopology::isEfaDevice(hwloc_obj_t obj) const {
     // Amazon EFA vendor ID is 0x1d0f, device ID matches 0xefa* (wildcard for any EFA device)
     return obj->attr->pcidev.vendor_id == 0x1d0f &&
         (obj->attr->pcidev.device_id & 0xfff0) == 0xefa0;
+}
+
+bool
+nixlLibfabricTopology::isInfiniBandDevice(hwloc_obj_t obj) const {
+    if (!obj || obj->type != HWLOC_OBJ_PCI_DEVICE) {
+        return false;
+    }
+    NIXL_TRACE << "Checking isInfiniBandDevice on device " << std::hex << std::showbase
+               << obj->attr->pcidev.vendor_id << " " << obj->attr->pcidev.device_id;
+
+    // Mellanox/NVIDIA InfiniBand HCA vendor ID is 0x15b3
+    // PCI class 0x0c06 identifies InfiniBand controllers
+    return obj->attr->pcidev.vendor_id == 0x15b3 &&
+        obj->attr->pcidev.class_id == 0x0c06;
 }
 
 size_t
