@@ -81,7 +81,7 @@ nixlLibfabricTopology::discoverTopology() {
         return status;
     }
     // For EFA and verbs devices, build PCIe to Libfabric device mapping and full topology
-    if (provider_name == "efa" || provider_name == "verbs;ofi_rxd") {
+    if (provider_name == "efa" || provider_name == "verbs;ofi_rxm") {
         // Build PCIe to Libfabric device mapping
         status = buildPcieToLibfabricMapping();
         if (status != NIXL_SUCCESS) {
@@ -110,6 +110,7 @@ nixlLibfabricTopology::discoverTopology() {
 
         // Set basic values without hwloc discovery
         num_nvidia_accel = 0; // TCP doesn't need accelerator topology
+        num_amd_accel = 0; // TCP doesn't need accelerator topology
         num_aws_accel = 0; // TCP doesn't need accelerator topology
         num_numa_nodes = 1; // Simple fallback
 
@@ -133,8 +134,8 @@ nixlLibfabricTopology::discoverProviderWithDevices() {
     // Set device type based on discovered provider
     if (provider_name == "efa") {
         NIXL_INFO << "Discovered " << num_devices << " EFA devices";
-    } else if (provider_name == "verbs;ofi_rxd") {
-        NIXL_INFO << "Discovered " << num_devices << " InfiniBand (verbs;ofi_rxd) devices";
+    } else if (provider_name == "verbs;ofi_rxm") {
+        NIXL_INFO << "Discovered " << num_devices << " InfiniBand (" << provider_name << ") devices";
     } else if (provider_name == "tcp" || provider_name == "sockets") {
         NIXL_INFO << "Discovered " << num_devices << " " << provider_name
                   << " devices (TCP fallback)";
@@ -168,7 +169,7 @@ nixlLibfabricTopology::getEfaDevicesForPci(const std::string &pci_bus_id) const 
 
         // GPU query, lookup based on GPU BDF
         if (auto it = pci_to_efa_devices.find(normalized_id); it != pci_to_efa_devices.end()) {
-            NIXL_DEBUG << "Found EFA devices for PCI " << pci_bus_id << " (normalized to "
+            NIXL_DEBUG << "Found EFA/IB devices for PCI " << pci_bus_id << " (normalized to "
                        << normalized_id << ")";
             return it->second;
         }
@@ -176,14 +177,14 @@ nixlLibfabricTopology::getEfaDevicesForPci(const std::string &pci_bus_id) const 
         // Neuron query, lookup based on EFA BDF
         if (auto it = pcie_to_libfabric_map.find(normalized_id);
             it != pcie_to_libfabric_map.end()) {
-            NIXL_DEBUG << "Found EFA devices for PCI " << pci_bus_id << " (normalized to "
+            NIXL_DEBUG << "Found EFA/IB devices for PCI " << pci_bus_id << " (normalized to "
                        << normalized_id << ")";
             return {it->second};
         }
 
         // PCI ID parsed successfully but not found in mapping
         NIXL_WARN << "PCI bus ID " << pci_bus_id << " (normalized to " << normalized_id
-                  << ") not found in accelerator-EFA mapping, returning all devices";
+                  << ") not found in accelerator-EFA/IB mapping, returning all devices";
     } else {
         // Failed to parse PCI bus ID format
         NIXL_WARN << "Failed to parse PCI bus ID format: " << pci_bus_id
@@ -260,12 +261,12 @@ nixlLibfabricTopology::printTopologyInfo() const {
     NIXL_TRACE << "Number of AMD accelerators: " << num_amd_accel;
     NIXL_TRACE << "Number of AWS Neuron accelerators: " << num_aws_accel;
     NIXL_TRACE << "Number of NUMA nodes: " << num_numa_nodes;
-    NIXL_TRACE << "Number of EFA devices: " << num_devices;
-    NIXL_TRACE << "EFA devices: ";
+    NIXL_TRACE << "Number of EFA/IB devices: " << num_devices;
+    NIXL_TRACE << "EFA/IB devices: ";
     for (size_t i = 0; i < all_devices.size(); ++i) {
         NIXL_TRACE << "  [" << i << "] " << all_devices[i];
     }
-    NIXL_TRACE << "Accelerator-PCI → EFA mapping:";
+    NIXL_TRACE << "Accelerator-PCI → EFA/IB mapping:";
     for (const auto &pair : pci_to_efa_devices) {
         std::stringstream ss;
         ss << "  Accelerator-PCI " << pair.first << " → [";
@@ -276,7 +277,7 @@ nixlLibfabricTopology::printTopologyInfo() const {
         ss << "]";
         NIXL_TRACE << ss.str();
     }
-    NIXL_TRACE << "Host memory (DRAM) will limit number of EFA devices used per-NUMA node "
+    NIXL_TRACE << "Host memory (DRAM) will limit number of EFA/IB devices used per-NUMA node "
                   "according to maximum PCIe switch bandwidth";
     NIXL_TRACE << "=====================================";
 }
@@ -457,10 +458,6 @@ nixlLibfabricTopology::discoverAccelWithHwloc() {
     return NIXL_SUCCESS;
 }
 
-// The naming of the method and some variables not aligned anymore with
-// the change to support verbs;ofi_rxd, but the logic is still valid
-// for both EFA and verbs devices since both are PCIe devices discovered via hwloc.
-// We can refactor the naming in a future cleanup if needed.
 nixl_status_t
 nixlLibfabricTopology::discoverEfaDevicesWithHwloc() {
     // Network devices are already discovered via libfabric
@@ -468,8 +465,8 @@ nixlLibfabricTopology::discoverEfaDevicesWithHwloc() {
     int hwloc_nic_count = 0;
     hwloc_obj_t pci_obj = nullptr;
     while ((pci_obj = hwloc_get_next_pcidev(hwloc_topology, pci_obj)) != nullptr) {
-        bool is_target_device = (provider_name == "verbs;ofi_rxd") ? isInfiniBandDevice(pci_obj)
-                                                                 : isEfaDevice(pci_obj);
+        bool is_target_device = (provider_name == "verbs;ofi_rxm") ? isInfiniBandDevice(pci_obj)
+                                                                   : isEfaDevice(pci_obj);
         if (is_target_device) {
             hwloc_nic_count++;
             NIXL_TRACE << "Found " << provider_name
