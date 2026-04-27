@@ -29,30 +29,43 @@
 #include <optional>
 
 #include <cxxopts.hpp>
-
-// RIXL hack: compiling with g++ generates an error due to the way __noinline__
-// is defined in rocm/include/hip/amd_detail/host_defines.h for non-clang compilers.
-// This is a temporary workaround. Together with -Wno-error it makes it work.
-#undef __has_attribute
-#define __has_attribute(x) 0
+// Workaround for HIP/ROCm conflict with toml++ __has_attribute checks
+#ifdef __HIP_PLATFORM_AMD__
+#pragma push_macro("__noinline__")
+#undef __noinline__
+#endif
 #include <toml++/toml.hpp>
+#ifdef __HIP_PLATFORM_AMD__
+#pragma pop_macro("__noinline__")
+#endif
 
 #include <utils/common/nixl_time.h>
 #include "runtime/runtime.h"
 
 #if HAVE_CUDA
-//#include <cuda.h>
-//#include <cuda_runtime.h>
-
-// Temporary workaround for HIP until we figure
-// out how to include the generated util_hip.h header file
-// in a portable manner
+#ifdef __HIP_PLATFORM_AMD__
+// ROCm/HIP platform
 #include <hip/hip_runtime.h>
 
 #define cudaSuccess hipSuccess
 #define CUDA_SUCCESS hipSuccess
 #define cudaGetErrorString hipGetErrorString
 #define cuGetErrorString hipDrvGetErrorString
+
+// HIP requires void* for memory addresses, CUDA uses CUdeviceptr (uintptr_t)
+#define CU_DEVICE_PTR(addr) reinterpret_cast<void *>(addr)
+#define CU_MEM_HANDLE(handle) reinterpret_cast<hipMemGenericAllocationHandle_t>(handle)
+
+#else
+// NVIDIA CUDA platform
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+// No conversion needed for CUDA
+#define CU_DEVICE_PTR(addr) (addr)
+#define CU_MEM_HANDLE(handle) (handle)
+
+#endif // __HIP_PLATFORM_AMD__
 
 #define CHECK_CUDA_ERROR(result, message)                                           \
     do {                                                                            \

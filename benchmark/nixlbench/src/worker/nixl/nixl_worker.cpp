@@ -482,9 +482,11 @@ static void
 cleanupVramCuda(xferBenchIOV &iov) {
     CHECK_CUDA_ERROR(cudaSetDevice(iov.devId), "Failed to set device");
     if (xferBenchConfig::enable_vmm) {
-        CHECK_CUDA_DRIVER_ERROR(cuMemUnmap(iov.addr, iov.len), "Failed to unmap memory");
-        CHECK_CUDA_DRIVER_ERROR(cuMemRelease(iov.handle), "Failed to release memory");
-        CHECK_CUDA_DRIVER_ERROR(cuMemAddressFree(iov.addr, iov.padded_size),
+        CHECK_CUDA_DRIVER_ERROR(cuMemUnmap(CU_DEVICE_PTR(iov.addr), iov.len),
+                                "Failed to unmap memory");
+        CHECK_CUDA_DRIVER_ERROR(cuMemRelease(CU_MEM_HANDLE(iov.handle)),
+                                "Failed to release memory");
+        CHECK_CUDA_DRIVER_ERROR(cuMemAddressFree(CU_DEVICE_PTR(iov.addr), iov.padded_size),
                                 "Failed to free reserved address");
     } else {
         CHECK_CUDA_ERROR(cudaFreeAsync((void *)iov.addr, 0), "Failed to deallocate CUDA buffer");
@@ -685,9 +687,11 @@ xferBenchNixlWorker::cleanupBasicDescVram(xferBenchIOV &iov) {
 
     CHECK_CUDA_ERROR(cudaSetDevice(iov.devId), "Failed to set device");
     if (xferBenchConfig::enable_vmm) {
-        CHECK_CUDA_DRIVER_ERROR(cuMemUnmap((void*)iov.addr, iov.len), "Failed to unmap memory");
-        CHECK_CUDA_DRIVER_ERROR(cuMemRelease((hipMemGenericAllocationHandle_t)iov.handle), "Failed to release memory");
-        CHECK_CUDA_DRIVER_ERROR(cuMemAddressFree((void*)iov.addr, iov.padded_size),
+        CHECK_CUDA_DRIVER_ERROR(cuMemUnmap(CU_DEVICE_PTR(iov.addr), iov.len),
+                                "Failed to unmap memory");
+        CHECK_CUDA_DRIVER_ERROR(cuMemRelease(CU_MEM_HANDLE(iov.handle)),
+                                "Failed to release memory");
+        CHECK_CUDA_DRIVER_ERROR(cuMemAddressFree(CU_DEVICE_PTR(iov.addr), iov.padded_size),
                                 "Failed to free reserved address");
     } else {
         /*
