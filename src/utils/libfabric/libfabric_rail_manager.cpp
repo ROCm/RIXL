@@ -206,6 +206,9 @@ nixlLibfabricRailManager::nixlLibfabricRailManager(size_t striping_threshold)
         runtime_ = FI_HMEM_CUDA;
         NIXL_INFO << "System runtime: CUDA for " << topology->getNumNvidiaAccel()
                   << " NVIDIA GPU(s)";
+    } else if (topology->getNumAmdAccel() > 0) {
+        runtime_ = FI_HMEM_ROCR;
+        NIXL_INFO << "System runtime: ROCR for " << topology->getNumAmdAccel() << " AMD GPU(s)";
     } else if (topology->getNumAwsAccel() > 0) {
         runtime_ = FI_HMEM_NEURON;
         NIXL_INFO << "System runtime: NEURON for " << topology->getNumAwsAccel()
@@ -968,6 +971,7 @@ nixlLibfabricRailManager::progressActiveRails() {
         // Always progress rail 0 for notifications (SEND/RECV)
         rails_to_process.insert(0);
         for (const auto &[rail_id, refcount] : active_rails_) {
+            (void)refcount;
             rails_to_process.insert(rail_id);
         }
     }

@@ -100,6 +100,16 @@ nrtQueryAddr(const void *va, std::string *efa_bdf) {
     } while (0)
 #endif
 
+#ifdef HAVE_ROCM
+#define CHECK_HIP_ERROR(result, message)                                                          \
+    do {                                                                                          \
+        if (result != hipSuccess) {                                                               \
+            NIXL_ERROR << "HIP Error: " << message << " (" << hipGetErrorString(result) << ")";  \
+            return NIXL_ERR_BACKEND;                                                              \
+        }                                                                                         \
+    } while (0)
+#endif
+
 /****************************************
  * CUDA Context Management
  *****************************************/
@@ -226,6 +236,87 @@ nixlLibfabricEngine::vramFiniCtx() {
 #endif
 
 /****************************************
+ * ROCm/HIP Context Management
+ *****************************************/
+
+#ifdef HAVE_ROCM
+static int
+rocmQueryAddr(void *address, bool &is_dev, int &dev_id, std::string &pci_bus_id) {
+    hipPointerAttribute_t attr;
+    hipError_t result = hipPointerGetAttributes(&attr, address);
+    if (result != hipSuccess) {
+        is_dev = false;
+        pci_bus_id = "";
+        return -1;
+    }
+    is_dev = (attr.type == hipMemoryTypeDevice);
+    dev_id = attr.device;
+    pci_bus_id = "";
+    if (is_dev) {
+        char buf[32];
+        if (hipDeviceGetPCIBusId(buf, sizeof(buf), dev_id) == hipSuccess)
+            pci_bus_id = std::string(buf);
+    }
+    return 0;
+}
+
+int
+nixlLibfabricRocmCtx::rocmUpdateCtxPtr(void *address, int expected_dev, bool &was_updated) {
+    bool is_dev;
+    int dev_id;
+    std::string pci_bus_id;
+    was_updated = false;
+
+    if (expected_dev == -1) return -1;
+    if (myDevId_ != -1 && expected_dev != myDevId_) return -1;
+
+    if (rocmQueryAddr(address, is_dev, dev_id, pci_bus_id) != 0) return -1;
+    if (!is_dev) return 0;
+    if (dev_id != expected_dev) return -1;
+
+    if (myDevId_ == -1) {
+        myDevId_ = expected_dev;
+        was_updated = true;
+    }
+    return 0;
+}
+
+int
+nixlLibfabricRocmCtx::rocmSetCtx() {
+    if (myDevId_ < 0) return 0;
+    hipError_t result = hipSetDevice(myDevId_);
+    return (result == hipSuccess) ? 0 : -1;
+}
+
+void
+nixlLibfabricEngine::vramInitCtx() {
+    rocmCtx_ = std::make_unique<nixlLibfabricRocmCtx>();
+}
+
+int
+nixlLibfabricEngine::vramUpdateCtx(void *address, uint64_t devId, bool &restart_reqd) {
+    restart_reqd = false;
+    if (!rocm_addr_wa_) return 0;
+    bool was_updated;
+    int ret = rocmCtx_->rocmUpdateCtxPtr(address, (int)devId, was_updated);
+    if (ret) return ret;
+    restart_reqd = was_updated;
+    return 0;
+}
+
+int
+nixlLibfabricEngine::vramApplyCtx() {
+    if (!rocm_addr_wa_) return 0;
+    return rocmCtx_->rocmSetCtx();
+}
+
+void
+nixlLibfabricEngine::vramFiniCtx() {
+    rocmCtx_.reset();
+}
+#endif
+
+/****************************************
  * Request Management
  *****************************************/
 
@@ -306,9 +397,9 @@ nixlLibfabricEngine::nixlLibfabricEngine(const nixlBackendInitParams *init_param
     runtime_ = rail_manager.getRuntime();
 
     NIXL_INFO << "System runtime: "
-              << (runtime_ == FI_HMEM_CUDA       ? "CUDA" :
-                      runtime_ == FI_HMEM_NEURON ? "NEURON" :
-                                                   "SYSTEM");
+              << (runtime_ == FI_HMEM_CUDA   ? "CUDA"   :
+                  runtime_ == FI_HMEM_ROCR   ? "ROCR"   :
+                  runtime_ == FI_HMEM_NEURON ? "NEURON" : "SYSTEM");
 
 #ifdef HAVE_CUDA
     if (runtime_ == FI_HMEM_CUDA) {
@@ -321,6 +412,18 @@ nixlLibfabricEngine::nixlLibfabricEngine(const nixlBackendInitParams *init_param
         } else {
             cuda_addr_wa_ = true;
             NIXL_INFO << "CUDA address workaround: enabled";
+        }
+    }
+#endif
+#ifdef HAVE_ROCM
+    if (runtime_ == FI_HMEM_ROCR) {
+        vramInitCtx();
+        if (nixl::config::checkExistence("NIXL_DISABLE_ROCM_ADDR_WA")) {
+            NIXL_INFO << "ROCm address workaround: disabled";
+            rocm_addr_wa_ = false;
+        } else {
+            rocm_addr_wa_ = true;
+            NIXL_INFO << "ROCm address workaround: enabled";
         }
     }
 #endif
@@ -678,6 +781,12 @@ nixlLibfabricEngine::getSupportedMems() const {
         mems.push_back(VRAM_SEG);
     } else
 #endif
+#ifdef HAVE_ROCM
+    if (runtime_ == FI_HMEM_ROCR) {
+        NIXL_DEBUG << "ROCm runtime detected, adding VRAM support";
+        mems.push_back(VRAM_SEG);
+    } else
+#endif
         if (runtime_ == FI_HMEM_NEURON) {
         NIXL_DEBUG << "Neuron runtime detected, adding VRAM support";
         mems.push_back(VRAM_SEG);
@@ -747,6 +856,38 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
             NIXL_DEBUG << "Queried PCI bus ID: " << pci_bus_id << " for GPU " << mem.devId;
         }
 #endif
+#ifdef HAVE_ROCM
+        if (runtime_ == FI_HMEM_ROCR) {
+            if (rocm_addr_wa_) {
+                bool need_restart;
+                if (vramUpdateCtx((void *)mem.addr, mem.devId, need_restart)) {
+                    NIXL_INFO << "Multi-GPU detected (device " << mem.devId
+                              << "), using hipSetDevice fallback";
+                    rocm_addr_wa_ = false;
+                } else if (need_restart) {
+                    NIXL_DEBUG << "ROCm device updated, applying context";
+                    vramApplyCtx();
+                }
+            }
+            if (!rocm_addr_wa_) {
+                hipError_t hip_ret = hipSetDevice(mem.devId);
+                if (hip_ret != hipSuccess) {
+                    NIXL_ERROR << "Failed to set HIP device " << mem.devId
+                               << ": " << hipGetErrorString(hip_ret);
+                    return NIXL_ERR_NOT_SUPPORTED;
+                }
+                NIXL_INFO << "Set HIP device context to GPU " << mem.devId;
+            }
+            bool is_dev;
+            int dev_id;
+            int ret = rocmQueryAddr((void *)mem.addr, is_dev, dev_id, pci_bus_id);
+            if (ret || !is_dev) {
+                NIXL_ERROR << "Failed to query device from memory " << (void *)mem.addr;
+                return NIXL_ERR_BACKEND;
+            }
+            NIXL_DEBUG << "Queried PCI bus ID: " << pci_bus_id << " for AMD GPU " << mem.devId;
+        }
+#endif
         if (runtime_ == FI_HMEM_NEURON) {
             // Neuron-specific address query
             int ret = nrtQueryAddr((void *)mem.addr, &pci_bus_id);
@@ -767,6 +908,12 @@ nixlLibfabricEngine::registerMem(const nixlBlobDesc &mem,
 #ifdef HAVE_CUDA
     // Set CUDA context before libfabric operations for VRAM
     if (nixl_mem == VRAM_SEG && runtime_ == FI_HMEM_CUDA) {
+        vramApplyCtx();
+    }
+#endif
+#ifdef HAVE_ROCM
+    // Set HIP device before libfabric operations for VRAM
+    if (nixl_mem == VRAM_SEG && runtime_ == FI_HMEM_ROCR) {
         vramApplyCtx();
     }
 #endif

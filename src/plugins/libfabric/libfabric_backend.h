@@ -42,6 +42,10 @@
 #include <cuda_runtime.h>
 #endif
 
+#ifdef HAVE_ROCM
+#include <hip/hip_runtime_api.h>
+#endif
+
 // Forward declarations
 class nixlLibfabricEngine;
 
@@ -69,6 +73,29 @@ public:
     /** Set the current CUDA context */
     int
     cudaSetCtx();
+};
+#endif
+
+#ifdef HAVE_ROCM
+/** HIP context management for libfabric backend (ROCm) */
+class nixlLibfabricRocmCtx {
+private:
+    int myDevId_;
+
+public:
+    nixlLibfabricRocmCtx() : myDevId_(-1) {}
+
+    /** Reset ROCm device tracking to initial state */
+    void
+    rocmResetCtxPtr() { myDevId_ = -1; }
+
+    /** Update ROCm device tracking for given memory address and device */
+    int
+    rocmUpdateCtxPtr(void *address, int expected_dev, bool &was_updated);
+
+    /** Set the current HIP device */
+    int
+    rocmSetCtx();
 };
 #endif
 
@@ -275,6 +302,11 @@ private:
     std::unique_ptr<nixlLibfabricCudaCtx> cudaCtx_;
     bool cuda_addr_wa_; // CUDA address workaround flag
 #endif
+#ifdef HAVE_ROCM
+    // ROCm/HIP context management
+    std::unique_ptr<nixlLibfabricRocmCtx> rocmCtx_;
+    bool rocm_addr_wa_; // ROCm address workaround flag
+#endif
 
     void
     postShutdownCompletion();
@@ -294,6 +326,17 @@ private:
 
 #ifdef HAVE_CUDA
     // CUDA context management methods
+    void
+    vramInitCtx();
+    int
+    vramUpdateCtx(void *address, uint64_t devId, bool &restart_reqd);
+    int
+    vramApplyCtx();
+    void
+    vramFiniCtx();
+#endif
+#ifdef HAVE_ROCM
+    // ROCm/HIP context management methods
     void
     vramInitCtx();
     int

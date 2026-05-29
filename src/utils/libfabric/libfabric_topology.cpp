@@ -33,9 +33,14 @@
 #include <cuda_runtime.h>
 #endif
 
+#ifdef HAVE_ROCM
+#include <hip/hip_runtime_api.h>
+#endif
+
 nixlLibfabricTopology::nixlLibfabricTopology()
     : num_aws_accel(0),
       num_nvidia_accel(0),
+      num_amd_accel(0),
       num_numa_nodes(0),
       num_devices(0),
       topology_discovered(false),
@@ -109,6 +114,7 @@ nixlLibfabricTopology::discoverTopology() {
 
         // Set basic values without hwloc discovery
         num_nvidia_accel = 0; // TCP doesn't need accelerator topology
+        num_amd_accel = 0; // TCP doesn't need accelerator topology
         num_aws_accel = 0; // TCP doesn't need accelerator topology
         num_numa_nodes = 1; // Simple fallback
 
@@ -252,7 +258,8 @@ nixlLibfabricTopology::getNumaRailCount() const {
 void
 nixlLibfabricTopology::printTopologyInfo() const {
     NIXL_INFO << "Topology: " << num_numa_nodes << " NUMA nodes, " << num_devices << " NICs, "
-              << num_nvidia_accel << " NVIDIA GPUs, " << num_aws_accel << " AWS accelerators";
+              << num_nvidia_accel << " NVIDIA GPUs, " << num_amd_accel << " AMD GPUs, "
+              << num_aws_accel << " AWS accelerators";
     if (avg_nic_speed > 0) {
         NIXL_INFO << "Avg NIC bandwidth: " << avg_nic_speed << " Gbps";
     }
@@ -286,6 +293,7 @@ nixlLibfabricTopology::getTopologyString() const {
     std::stringstream ss;
     ss << "Libfabric Topology: ";
     ss << "AWS_Accelerators=" << num_aws_accel << ", ";
+    ss << "AMD_GPUs=" << num_amd_accel << ", ";
     ss << "NUMA=" << num_numa_nodes << ", ";
     ss << "EFA=" << num_devices << ", ";
     ss << "Discovered=" << (topology_discovered ? "Yes" : "No");
@@ -398,11 +406,13 @@ nixl_status_t
 nixlLibfabricTopology::discoverAccelWithHwloc() {
     num_aws_accel = 0;
     num_nvidia_accel = 0;
+    num_amd_accel = 0;
     // Find all PCI devices and log detailed information
     static const char *vendor_names[2] = {"NEURON", "NVIDIA"};
     hwloc_obj_t pci_obj = nullptr;
     while ((pci_obj = hwloc_get_next_pcidev(hwloc_topology, pci_obj)) != nullptr) {
         const bool is_nvidia_accel = isNvidiaAccel(pci_obj);
+        const bool is_amd_accel    = isAmdAccel(pci_obj);
         if (is_nvidia_accel || isNeuronAccel(pci_obj)) {
             std::string pcie_addr = getPcieAddressFromHwlocObj(pci_obj);
             // Get device and vendor info
@@ -416,6 +426,16 @@ nixlLibfabricTopology::discoverAccelWithHwloc() {
 
             num_aws_accel++;
             num_nvidia_accel += is_nvidia_accel;
+        } else if (is_amd_accel) {
+            std::string pcie_addr = getPcieAddressFromHwlocObj(pci_obj);
+            uint16_t vendor_id = pci_obj->attr->pcidev.vendor_id;
+            uint16_t device_id = pci_obj->attr->pcidev.device_id;
+            uint16_t class_id = pci_obj->attr->pcidev.class_id;
+
+            NIXL_TRACE << "Found AMD accelerator " << num_amd_accel << ": " << pcie_addr
+                       << " (vendor=" << std::hex << vendor_id << ", device=" << device_id
+                       << ", class=" << class_id << std::dec << ")";
+            num_amd_accel++;
         }
     }
 
@@ -724,6 +744,16 @@ nixlLibfabricTopology::isNvidiaAccel(hwloc_obj_t obj) const {
     // Class 0x302 is 3D controller (GPU), 0x680 is other devices (network, etc.)
     uint16_t class_id = obj->attr->pcidev.class_id;
     return (class_id >= 0x300 && class_id < 0x400);
+}
+
+bool
+nixlLibfabricTopology::isAmdAccel(hwloc_obj_t obj) const {
+    if (!obj || obj->type != HWLOC_OBJ_PCI_DEVICE) {
+        return false;
+    }
+    // AMD PCI vendor ID is 0x1002; GPU display controller class 0x03xx
+    return (obj->attr->pcidev.vendor_id == 0x1002) &&
+           ((obj->attr->pcidev.class_id >> 8) == 0x03);
 }
 
 bool
