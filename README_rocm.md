@@ -1,3 +1,8 @@
+THIS REPOSITORY IS DEPRECATED. SUPPORT FOR AMD GPUS HAS BEEN CONTRIBUTED TO NIXL. PLEASE USE
+
+https://github.com/ai-dynamo/nixl
+
+
 # RIXL
 
 RIXL is the ROCm port of the NIXL library.
