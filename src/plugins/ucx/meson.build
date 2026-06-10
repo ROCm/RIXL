@@ -15,18 +15,13 @@
 
 asio_dep = [dependency('asio', required: true)]
 
-hipify_cmd = find_program('hipify-perl')
-hipify_src = generator(hipify_cmd,
-                       output : ['@BASENAME@_hip.cpp'],
-                       arguments : ['@INPUT@', '@EXTRA_ARGS@', '@OUTPUT@'])
-ucx_hip_src = hipify_src.process('ucx_backend.cpp', extra_args: '-o')
-
 ucx_backend_includes = include_directories('.')
 
 ucx_backend_sources = ['config.cpp',
                        'mem_list.cpp',
                        'rkey.cpp',
-                       ucx_hip_src,
+                       'ucx_backend.cpp',
+                       'ucx_enums.cpp',
                        'ucx_plugin.cpp',
                        'ucx_utils.cpp']
 
