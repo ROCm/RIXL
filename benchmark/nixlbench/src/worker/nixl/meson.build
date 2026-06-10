@@ -30,9 +30,15 @@ if cuda_available
   nixl_worker_deps += [cuda_dep]
 endif
 
+nixl_worker_cpp_args = []
+if use_rocm
+  nixl_worker_cpp_args += ['-Wno-unused-function']
+endif
+
 nixl_worker_lib = static_library('nixl_worker',
   nixl_worker_sources,
   include_directories: inc_dir,
   dependencies: nixl_worker_deps,
+  cpp_args: nixl_worker_cpp_args,
   install: true,
 )

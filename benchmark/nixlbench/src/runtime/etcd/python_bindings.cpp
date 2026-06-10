@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,13 @@
  * limitations under the License.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overread"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#pragma GCC diagnostic pop
 #include "etcd_rt.h"
 
 namespace py = pybind11;
@@ -26,11 +30,14 @@ PYBIND11_MODULE (etcd_runtime, m) {
     m.doc() = "Python bindings for ETCD runtime";
 
     py::class_<xferBenchEtcdRT>(m, "EtcdRuntime")
-        .def(py::init<const std::string &, const std::string &, const int, int *>(),
+        .def(py::init([](const std::string &benchmark_group,
+                         const std::string &etcd_endpoints,
+                         const int size) {
+                 return new xferBenchEtcdRT(benchmark_group, etcd_endpoints, size, nullptr);
+             }),
              py::arg("benchmark_group"),
              py::arg("etcd_endpoints"),
-             py::arg("size"),
-             py::arg("terminate") = nullptr)
+             py::arg("size"))
         .def("setup", &xferBenchEtcdRT::setup)
         .def("get_rank", &xferBenchEtcdRT::getRank)
         .def("get_size", &xferBenchEtcdRT::getSize)
