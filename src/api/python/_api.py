@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pickle
 from enum import Enum
 from typing import Optional, Union
@@ -249,6 +250,10 @@ class nixl_agent:
                         init["thread_count"] = str(nixl_conf.num_threads)
                     elif bknd == "UCCL":
                         init["num_cpus"] = str(nixl_conf.num_threads)
+                if bknd == "UCX":
+                    mode = os.environ.get("NIXL_UCX_ERR_HANDLING_MODE")
+                    if mode is not None:
+                        init["ucx_error_handling_mode"] = mode
                 self.create_backend(bknd, init)
 
         self.nixl_mems = {
