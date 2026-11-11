@@ -13,7 +13,7 @@ jobs:
           - ./benchmark
           - ./examples/python
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
     - name: Check for print() calls in ${{ matrix.path }}
       run: |
         ./.ci/scripts/check_prints.sh ${{ matrix.path }}
